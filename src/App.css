@@ -7,7 +7,8 @@
   prefersdark: false;
   color-scheme: light;
 
-  /* Fond principal (Crème/Blanc cassé) */
+  /* --- FONDS --- */
+  /* Fond principal (Crème/Blanc cassé) - Utilisé pour la page et la barre du haut */
   --color-base-100: oklch(98.5% 0.01 80);
   /* Fond secondaire (Légèrement plus foncé) */
   --color-base-200: oklch(96% 0.015 80);
@@ -16,23 +17,25 @@
   /* Texte principal (Bleu nuit très foncé) */
   --color-base-content: oklch(25% 0.04 250);
 
-  /* Orange vif (Boutons, CTA) */
+  /* --- COULEURS DE MARQUE --- */
+  /* Orange vif (Boutons "Rechercher", "Commander maintenant", CTA) */
   --color-primary: oklch(70% 0.2 45);
   --color-primary-content: oklch(98% 0.01 45);
 
-  /* Bleu nuit foncé (Navbar, titres) */
-  --color-secondary: oklch(25% 0.04 250);
+  /* Bleu nuit très foncé (LA NAVBAR, les titres principaux) */
+  /* C'est la couleur exacte de votre barre de menu */
+  --color-secondary: oklch(20% 0.04 250);
   --color-secondary-content: oklch(98% 0.01 250);
 
   /* Accent (Utilisé pour les éléments flash ou promotions) */
   --color-accent: oklch(75% 0.18 45);
   --color-accent-content: oklch(98% 0.01 45);
 
-  /* Neutre (Gris foncé) */
+  /* Neutre (Gris foncé, pour les textes secondaires) */
   --color-neutral: oklch(30% 0.02 250);
   --color-neutral-content: oklch(98% 0.01 250);
 
-  /* Couleurs d'état */
+  /* --- COULEURS D'ÉTAT --- */
   --color-info: oklch(70% 0.15 220);
   --color-info-content: oklch(98% 0.01 220);
   --color-success: oklch(65% 0.25 140);
@@ -42,19 +45,18 @@
   --color-error: oklch(65% 0.3 30);
   --color-error-content: oklch(98% 0.01 30);
 
-  /* Arrondis (Vos boutons ont l'air assez arrondis, ex: "Commander maintenant") */
+  /* --- ARRONDIS --- */
+  /* Vos boutons ont l'air assez arrondis, ex: "Commander maintenant" */
   --radius-selector: 1rem;
   --radius-field: 0.5rem;
   --radius-box: 0.75rem;
 
-  /* Tailles de base */
+  /* --- TAILLES & BORDURES --- */
   --size-selector: 0.25rem;
   --size-field: 0.25rem;
-
-  /* Bordures */
   --border: 1px;
 
-  /* Effets */
+  /* --- EFFETS --- */
   --depth: 1;
   --noise: 0;
 }
