@@ -1,4 +1,4 @@
-// src/components/Navbar.jsx - ZonACha ERP - Header unique (site + logiciel)
+// src/components/Navbar.jsx - ZonACha ERP - Navbar
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
@@ -47,6 +47,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
   const [userFullName, setUserFullName] = useState('Utilisateur');
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  // ✅ État établissement (déjà présent, on l'utilise maintenant dans le header)
   const [etablissement, setEtablissement] = useState(null);
   const [loadingEtab, setLoadingEtab] = useState(true);
   const [logoUrl, setLogoUrl] = useState(null);
@@ -146,6 +147,16 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
     localStorage.removeItem('User');
     navigate('/');
   };
+
+  // ============================================================
+  // ✅ Valeurs dynamiques pour l'établissement (avec fallback ZonACha)
+  // ============================================================
+  const nomEtablissement = !loadingEtab && etablissement?.nom
+    ? etablissement.nom
+    : 'ZonACha';
+  const sigleEtablissement = !loadingEtab && etablissement?.sigle
+    ? etablissement.sigle
+    : 'Zone Achat ERP';
 
   // ============================================================
   // MENU SECTIONS
@@ -269,7 +280,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
     menuSections.splice(8, 0, {
       name: 'PARAMÈTRES', icon: Settings,
       items: [
-        { id: 'company-config', text: 'Configuration Établissement', icon: Building2, path: '/company-config', permission: isAdmin },
+        { id: 'company-config', text: 'Informations Entreprise', icon: Building2, path: '/company-config', permission: isAdmin },
         { id: 'notifications', text: 'Notifications', icon: Bell, path: '/notifications', permission: isAdmin || isGestionnaire, badge: notificationsCount > 0 ? notificationsCount : 0 },
         { id: 'system-settings', text: 'Paramètres Système', icon: Cog, path: '/system-settings', permission: isAdmin },
         { id: 'document-templates', text: 'Modèles Documents', icon: Printer, path: '/document-templates', permission: isAdmin || isGestionnaire },
@@ -394,12 +405,13 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
 
       {/* ================================================================
           🎯 HEADER UNIQUE (site + logiciel) - 64px
+          ✅ Affiche les infos de l'établissement comme Navbar1
           ================================================================ */}
       <nav className="fixed top-0 left-0 right-0 z-40 bg-white border-b border-orange-100 shadow-sm">
         <div className="px-3 sm:px-6 lg:pl-72">
           <div className="flex items-center justify-between h-16 gap-2 sm:gap-4">
 
-            {/* ---- GAUCHE : toggle + logo ZonACha ---- */}
+            {/* ---- GAUCHE : toggle + logo + NOM ÉTABLISSEMENT ---- */}
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -417,11 +429,12 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
               </button>
 
               <Link to="/dashboard" className="flex items-center gap-3 group">
+                {/* Logo dynamique de l'établissement */}
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm border border-orange-200 overflow-hidden bg-white shrink-0">
                   {!loadingEtab && logoUrl ? (
                     <img
                       src={logoUrl}
-                      alt={etablissement?.nom || 'Logo ZonACha'}
+                      alt={nomEtablissement || 'Logo établissement'}
                       className="w-full h-full object-cover rounded-xl"
                       onError={(e) => { e.target.style.display = 'none'; }}
                     />
@@ -429,18 +442,20 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                     <Store className="w-6 h-6 text-orange-500" />
                   )}
                 </div>
-                <div className="hidden sm:block">
-                  <h1 className="font-extrabold text-xl tracking-tight leading-none">
-                    <span className="text-slate-900">Zon</span>
-                    <span className="text-orange-500">Acha</span>
+
+                {/* ✅ Nom + sigle de l'établissement (fallback ZonACha) */}
+                <div className="hidden sm:block min-w-0">
+                  <h1 className="font-extrabold text-lg tracking-tight leading-none truncate max-w-[200px] text-slate-900">
+                    {loadingEtab ? 'Chargement...' : nomEtablissement}
                   </h1>
-                  <p className="text-orange-400 text-[10px] font-medium leading-tight">
-                    Plus qu'une boutique, une expérience.
+                  <p className="text-orange-500 text-[10px] font-medium leading-tight truncate max-w-[200px]">
+                    {loadingEtab ? '' : sigleEtablissement}
                   </p>
                 </div>
-                <span className="sm:hidden font-extrabold text-base">
-                  <span className="text-slate-900">Zon</span>
-                  <span className="text-orange-500">Acha</span>
+
+                {/* Version mobile (nom seulement) */}
+                <span className="sm:hidden font-extrabold text-base truncate max-w-[140px] text-slate-900">
+                  {loadingEtab ? '...' : nomEtablissement}
                 </span>
               </Link>
             </div>
@@ -467,7 +482,6 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
             {/* ---- DROITE : actions logiciel ---- */}
             <div className="flex items-center gap-1 sm:gap-2 shrink-0">
 
-              {/* Recherche mobile */}
               <button
                 onClick={() => setIsSearchOpen(true)}
                 className="md:hidden p-2 rounded-lg text-slate-600 hover:bg-orange-50 hover:text-orange-500 transition-colors"
@@ -475,7 +489,6 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                 <Search className="w-5 h-5" />
               </button>
 
-              {/* Date / Heure (desktop large) */}
               <div className="hidden 2xl:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200">
                 <Calendar className="w-3.5 h-3.5 text-slate-500" />
                 <span className="text-slate-600 text-xs font-medium">{formattedDate}</span>
@@ -484,13 +497,11 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                 <span className="text-slate-600 text-xs font-medium">{formattedTime}</span>
               </div>
 
-              {/* Badge rôle */}
               <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-50 border border-orange-200">
                 <RoleIcon className="w-3.5 h-3.5 text-orange-500" />
                 <span className="text-orange-700 text-xs font-semibold">{roleConfig.label}</span>
               </div>
 
-              {/* Notifications */}
               <button className="relative p-2 rounded-lg text-slate-600 hover:bg-orange-50 hover:text-orange-500 transition-colors">
                 <Bell className="w-5 h-5" />
                 {notificationsCount > 0 && (
@@ -500,7 +511,6 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                 )}
               </button>
 
-              {/* Thème */}
               <button
                 onClick={toggleColorMode}
                 className="p-2 rounded-lg text-slate-600 hover:bg-orange-50 hover:text-orange-500 transition-colors"
@@ -509,7 +519,6 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                 {mode === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
 
-              {/* Menu utilisateur */}
               <div className="relative">
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
@@ -584,6 +593,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
 
       {/* ================================================================
           📚 SIDEBAR DESKTOP (top-16)
+          ✅ Affiche aussi les infos établissement
           ================================================================ */}
       <aside className={`
         fixed left-0 top-16 bottom-0 z-30
@@ -594,7 +604,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
       `}>
         <div className="h-full flex flex-col">
 
-          {/* Logo + nom dans la sidebar */}
+          {/* Logo + nom établissement dans la sidebar */}
           <div className={`p-4 border-b border-orange-100 ${!sidebarOpen && 'text-center'} bg-orange-50/40`}>
             <div className={`flex items-center ${!sidebarOpen && 'justify-center'} gap-3`}>
               <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center shadow-sm overflow-hidden shrink-0">
@@ -607,15 +617,13 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
               </div>
               {sidebarOpen && (
                 <div className="min-w-0">
+                  {/* ✅ Nom établissement dynamique */}
                   <h2 className="font-extrabold text-slate-900 text-sm leading-tight truncate">
-                    {etablissement?.nom ? (
-                      <span>{etablissement.nom}</span>
-                    ) : (
-                      <><span>Zon</span><span className="text-orange-500">Acha</span></>
-                    )}
+                    {loadingEtab ? 'Chargement...' : nomEtablissement}
                   </h2>
+                  {/* ✅ Sigle établissement dynamique */}
                   <p className="text-xs text-slate-500 truncate">
-                    {etablissement?.sigle || 'Zone Achat ERP'}
+                    {loadingEtab ? '' : sigleEtablissement}
                   </p>
                 </div>
               )}
@@ -691,7 +699,9 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                   <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
                   <span className="text-xs text-slate-400">v2.1.0</span>
                 </div>
-                <span className="badge badge-sm bg-orange-100 border-orange-200 text-orange-700">ZonACha</span>
+                <span className="badge badge-sm bg-orange-100 border-orange-200 text-orange-700 truncate max-w-[100px]">
+                  {loadingEtab ? 'ZonACha' : (etablissement?.sigle || 'ZonACha')}
+                </span>
               </div>
             ) : (
               <div className="text-center">
@@ -702,9 +712,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
         </div>
       </aside>
 
-      {/* ================================================================
-          📦 CONTENU PRINCIPAL (pt-16)
-          ================================================================ */}
+      {/* CONTENU PRINCIPAL */}
       <main className={`transition-all duration-300 pt-16 ${sidebarOpen ? 'lg:pl-72' : 'lg:pl-20'}`}>
         <div className="p-4 sm:p-6">
           {content || (
@@ -715,9 +723,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
         </div>
       </main>
 
-      {/* ================================================================
-          📱 MENU MOBILE
-          ================================================================ */}
+      {/* MENU MOBILE */}
       {isMobileMenuOpen && (
         <>
           <div className="fixed inset-0 bg-black/40 z-50 lg:hidden" onClick={() => setIsMobileMenuOpen(false)}></div>
@@ -733,11 +739,14 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                       <Store className="w-6 h-6 text-orange-500" />
                     )}
                   </div>
-                  <div>
-                    <h2 className="font-extrabold text-lg text-white leading-tight">
-                      <span>Zon</span><span className="text-orange-200">Acha</span>
+                  <div className="min-w-0">
+                    {/* ✅ Nom établissement dynamique */}
+                    <h2 className="font-extrabold text-lg text-white leading-tight truncate max-w-[180px]">
+                      {loadingEtab ? 'Chargement...' : nomEtablissement}
                     </h2>
-                    <p className="text-white/80 text-xs">{roleConfig.label}</p>
+                    <p className="text-white/80 text-xs truncate max-w-[180px]">
+                      {loadingEtab ? roleConfig.label : sigleEtablissement}
+                    </p>
                   </div>
                 </div>
                 <button onClick={() => setIsMobileMenuOpen(false)} className="text-white p-2 rounded-lg hover:bg-white/10">

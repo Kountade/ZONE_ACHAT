@@ -9,6 +9,8 @@ import ProtectedRoute from './components/ProtectedRoutes';
 import PasswordResetRequest from './components/PasswordResetRequest';
 import PasswordReset from './components/PasswordReset';
 
+import EtablissementSettings from './components/settings/EtablissementSettings';
+
 
 function App() {
   const location = useLocation();
@@ -35,6 +37,8 @@ function App() {
         <Navbar
           content={
             <Routes>
+
+
               {/* Route protégée */}
               <Route element={<ProtectedRoute />}>
                
@@ -58,6 +62,7 @@ function App() {
                 {/* ==================== PARAMÈTRES ==================== */}
 
                   {/* ==================== COMPANY CONFIG ==================== */}
+                   <Route path="/company-config" element={<EtablissementSettings />} />
                
               </Route>
             </Routes>
