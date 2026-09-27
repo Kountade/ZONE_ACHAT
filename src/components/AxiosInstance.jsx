@@ -1,3 +1,4 @@
+// src/components/AxiosInstance.jsx 
 import axios from 'axios'
 
 // Configuration pour Vite.js
@@ -11,7 +12,7 @@ const getBaseUrl = () => {
   
   // Priorité 2 : Détection selon le mode
   if (import.meta.env.PROD) {
-    return 'https://zone-achat-backend.onrender.com'
+    return 'https://erp-scolaire-backend.onrender.com'
   }
   
   // Développement local
@@ -20,9 +21,9 @@ const getBaseUrl = () => {
 
 const baseUrl = getBaseUrl()
 
-console.log(`🚀 Environnement: ${import.meta.env.MODE}`)
-console.log(`🔗 URL API: ${baseUrl}`)
-console.log(`📦 Production: ${import.meta.env.PROD}`)
+console.log(` Environnement: ${import.meta.env.MODE}`)
+console.log(` URL API: ${baseUrl}`)
+console.log(` Production: ${import.meta.env.PROD}`)
 
 const AxiosInstance = axios.create({
     baseURL: baseUrl,

@@ -2,11 +2,11 @@
 import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import MyTextField from './forms/MyTextField'
-import MyPassField from './forms/MyPassField'
-import MyButton from './forms/MyButton'
-import MyMessage from './Message'
-import AxiosInstance from './AxiosInstance'
+import MyTextField from '../forms/MyTextField'
+import MyPassField from '../forms/MyPassField'
+import MyButton from '../forms/MyButton'
+import MyMessage from '../Message'
+import AxiosInstance from '../AxiosInstance'
 
 const PasswordReset = () => {
     const navigate = useNavigate()
