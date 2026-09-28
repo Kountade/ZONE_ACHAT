@@ -1,7 +1,7 @@
 // src/components/settings/EtablissementSettings.js
 import React, { useState, useEffect } from 'react';
 import axiosInstance from '../AxiosInstance';
-import { Upload, X, Save, Building2, AlertCircle, Plus, CheckCircle } from 'lucide-react';
+import { Upload, X, Save, Building2, AlertCircle, Plus, CheckCircle, Phone } from 'lucide-react';
 
 const EtablissementSettings = () => {
   const [loading, setLoading] = useState(true);
@@ -13,7 +13,8 @@ const EtablissementSettings = () => {
     nom: '',
     sigle: '',
     adresse: '',
-    telephone: '',
+    telephone1: '',
+    telephone2: '',
     email: '',
     site_web: '',
     devise: 'F CFA',
@@ -24,12 +25,10 @@ const EtablissementSettings = () => {
   const [logoFile, setLogoFile] = useState(null);
   const [logoDeleted, setLogoDeleted] = useState(false);
 
-  // État pour les notifications flottantes
   const [showMessage, setShowMessage] = useState(false);
   const [messageText, setMessageText] = useState('');
   const [messageType, setMessageType] = useState('success');
 
-  // Fonction pour afficher une notification
   const afficherMessage = (texte, type = 'success') => {
     setMessageText(texte);
     setMessageType(type);
@@ -37,13 +36,10 @@ const EtablissementSettings = () => {
     setTimeout(() => setShowMessage(false), 5000);
   };
 
-  // Récupération initiale
   useEffect(() => {
     const fetchEtablissement = async () => {
       try {
-        console.log('🔍 Récupération de l\'établissement...');
         const response = await axiosInstance.get('/etablissements/unique/');
-        console.log('✅ Données récupérées:', response.data);
         if (response.data && response.data.id) {
           const data = response.data;
           setFormData({
@@ -51,7 +47,8 @@ const EtablissementSettings = () => {
             nom: data.nom || '',
             sigle: data.sigle || '',
             adresse: data.adresse || '',
-            telephone: data.telephone || '',
+            telephone1: data.telephone1 || data.telephone || '',
+            telephone2: data.telephone2 || '',
             email: data.email || '',
             site_web: data.site_web || '',
             devise: data.devise || 'F CFA',
@@ -64,16 +61,15 @@ const EtablissementSettings = () => {
           setError('Aucun établissement trouvé. Vous pouvez en créer un ci-dessous.');
         }
       } catch (error) {
-        console.error('❌ Erreur chargement:', error);
         let msg = '';
         if (error.response && error.response.status === 404) {
-          msg = 'Route /etablissements/unique/ introuvable. Vérifiez l\'inclusion des URLs de l\'application "config" dans votre backend.';
+          msg = 'Route /etablissements/unique/ introuvable.';
         } else if (error.response && error.response.status === 401) {
           msg = 'Vous devez être authentifié.';
         } else if (error.response && error.response.status === 403) {
           msg = 'Vous n\'avez pas les droits pour accéder à cette ressource.';
         } else if (error.request) {
-          msg = 'Le serveur ne répond pas. Vérifiez que le backend est en cours d\'exécution.';
+          msg = 'Le serveur ne répond pas.';
         } else {
           msg = 'Erreur : ' + error.message;
         }
@@ -86,13 +82,11 @@ const EtablissementSettings = () => {
     fetchEtablissement();
   }, []);
 
-  // Gestion des champs
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Gestion du logo
   const handleLogoChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -103,12 +97,9 @@ const EtablissementSettings = () => {
       return;
     }
 
-    const allowedTypes = [
-      'image/jpeg', 'image/png', 'image/gif', 
-      'image/svg+xml', 'image/webp'
-    ];
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/svg+xml', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      afficherMessage('❌ Format non supporté. Utilisez JPG, PNG, GIF, SVG ou WebP.', 'error');
+      afficherMessage('❌ Format non supporté.', 'error');
       e.target.value = '';
       return;
     }
@@ -124,7 +115,7 @@ const EtablissementSettings = () => {
       };
       img.onerror = () => {
         URL.revokeObjectURL(url);
-        afficherMessage('❌ Le fichier semble être corrompu ou n\'est pas une image valide.', 'error');
+        afficherMessage('❌ Image invalide.', 'error');
         e.target.value = '';
       };
       img.src = url;
@@ -144,7 +135,6 @@ const EtablissementSettings = () => {
     if (input) input.value = '';
   };
 
-  // Création
   const handleCreate = async (e) => {
     e.preventDefault();
     setCreating(true);
@@ -155,18 +145,17 @@ const EtablissementSettings = () => {
         nom: formData.nom || 'Mon Établissement',
         sigle: formData.sigle || '',
         adresse: formData.adresse || '',
-        telephone: formData.telephone || '',
+        telephone1: formData.telephone1 || '',
+        telephone2: formData.telephone2 || '',
         email: formData.email || '',
         site_web: formData.site_web || '',
         devise: formData.devise,
         systeme_notation: formData.systeme_notation,
       };
 
-      console.log('📤 Création:', data);
       const response = await axiosInstance.post('/etablissements/', data, {
         headers: { 'Content-Type': 'application/json' },
       });
-      console.log('✅ Création réussie:', response.data);
 
       const created = response.data;
       setFormData(prev => ({
@@ -175,7 +164,8 @@ const EtablissementSettings = () => {
         nom: created.nom,
         sigle: created.sigle || '',
         adresse: created.adresse || '',
-        telephone: created.telephone || '',
+        telephone1: created.telephone1 || '',
+        telephone2: created.telephone2 || '',
         email: created.email || '',
         site_web: created.site_web || '',
         devise: created.devise,
@@ -187,7 +177,6 @@ const EtablissementSettings = () => {
       afficherMessage('✅ Établissement créé avec succès !', 'success');
       setTimeout(() => window.location.reload(), 1500);
     } catch (error) {
-      console.error('❌ Erreur création:', error);
       let msg = 'Erreur lors de la création.';
       if (error.response && error.response.data) {
         const details = Object.values(error.response.data).flat().join(' ');
@@ -204,7 +193,6 @@ const EtablissementSettings = () => {
     }
   };
 
-  // Mise à jour
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.id) {
@@ -220,7 +208,8 @@ const EtablissementSettings = () => {
       formDataToSend.append('nom', formData.nom);
       formDataToSend.append('sigle', formData.sigle || '');
       formDataToSend.append('adresse', formData.adresse || '');
-      formDataToSend.append('telephone', formData.telephone || '');
+      formDataToSend.append('telephone1', formData.telephone1 || '');
+      formDataToSend.append('telephone2', formData.telephone2 || '');
       formDataToSend.append('email', formData.email || '');
       formDataToSend.append('site_web', formData.site_web || '');
       formDataToSend.append('devise', formData.devise);
@@ -232,19 +221,18 @@ const EtablissementSettings = () => {
         formDataToSend.append('logo', '');
       }
 
-      console.log('📤 Envoi de la mise à jour...');
       const response = await axiosInstance.put(`/etablissements/${formData.id}/`, formDataToSend, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      console.log('✅ Mise à jour réussie:', response.data);
       const updated = response.data;
       setFormData(prev => ({
         ...prev,
         nom: updated.nom,
         sigle: updated.sigle,
         adresse: updated.adresse,
-        telephone: updated.telephone,
+        telephone1: updated.telephone1 || '',
+        telephone2: updated.telephone2 || '',
         email: updated.email,
         site_web: updated.site_web,
         devise: updated.devise,
@@ -258,7 +246,6 @@ const EtablissementSettings = () => {
       afficherMessage('✅ Établissement mis à jour avec succès !', 'success');
       setTimeout(() => window.location.reload(), 1500);
     } catch (error) {
-      console.error('❌ Erreur mise à jour:', error);
       let msg = 'Erreur lors de la mise à jour.';
       if (error.response) {
         if (error.response.status === 400) {
@@ -294,13 +281,13 @@ const EtablissementSettings = () => {
   const hasId = !!formData.id;
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      {/* Notification flottante */}
+    // ✅ Conteneur 100% largeur — plus de max-w-4xl ni de mx-auto
+    <div className="w-full p-2 sm:p-4">
       {showMessage && (
         <div className="fixed top-5 left-1/2 transform -translate-x-1/2 z-50 w-[90%] max-w-md animate-slideDown">
           <div className={`alert shadow-lg border-l-4 ${
-            messageType === 'error' 
-              ? 'alert-error border-l-error' 
+            messageType === 'error'
+              ? 'alert-error border-l-error'
               : 'alert-success border-l-success'
           }`}>
             <div className="flex items-center gap-3">
@@ -316,10 +303,11 @@ const EtablissementSettings = () => {
         </div>
       )}
 
-      <div className="bg-base-100 rounded-2xl shadow-xl p-6 md:p-8">
+      <div className="bg-base-100 rounded-2xl shadow-xl p-4 sm:p-6 w-full">
         <div className="flex items-center gap-3 mb-6">
           <Building2 className="w-8 h-8 text-primary" />
-          <h1 className="text-2xl font-bold text-base-content">Paramètres de l'établissement</h1>
+          {/* ✅ Titre modifié */}
+          <h1 className="text-2xl font-bold text-base-content">Informations de l'entreprise</h1>
         </div>
 
         {error && (
@@ -342,39 +330,60 @@ const EtablissementSettings = () => {
             </div>
           </div>
 
+          {/* ✅ Adresse : obligatoire avec étoile + required */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="label"><span className="label-text font-medium">Adresse</span></label>
-              <input type="text" name="adresse" value={formData.adresse} onChange={handleChange} className="input input-bordered w-full" />
+              <label className="label">
+                <span className="label-text font-medium">Adresse *</span>
+              </label>
+              <input
+                type="text"
+                name="adresse"
+                value={formData.adresse}
+                onChange={handleChange}
+                className="input input-bordered w-full"
+                required
+                placeholder="Ex: Conakry, Guinée"
+              />
             </div>
             <div>
-              <label className="label"><span className="label-text font-medium">Téléphone</span></label>
-              <input type="tel" name="telephone" value={formData.telephone} onChange={handleChange} className="input input-bordered w-full" />
+              <label className="label"><span className="label-text font-medium flex items-center gap-1">
+                <Phone className="w-4 h-4" /> Téléphone 1
+              </span></label>
+              <input type="tel" name="telephone1" value={formData.telephone1} onChange={handleChange} className="input input-bordered w-full" placeholder="+224 600 00 00 00" />
             </div>
             <div>
-              <label className="label"><span className="label-text font-medium">Email</span></label>
-              <input type="email" name="email" value={formData.email} onChange={handleChange} className="input input-bordered w-full" />
+              <label className="label"><span className="label-text font-medium flex items-center gap-1">
+                <Phone className="w-4 h-4" /> Téléphone 2
+              </span></label>
+              <input type="tel" name="telephone2" value={formData.telephone2} onChange={handleChange} className="input input-bordered w-full" placeholder="+224 600 00 00 00" />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
+              <label className="label"><span className="label-text font-medium">Email</span></label>
+              <input type="email" name="email" value={formData.email} onChange={handleChange} className="input input-bordered w-full" />
+            </div>
+            <div>
               <label className="label"><span className="label-text font-medium">Site web</span></label>
               <input type="url" name="site_web" value={formData.site_web} onChange={handleChange} className="input input-bordered w-full" placeholder="https://..." />
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="label"><span className="label-text font-medium">Devise</span></label>
               <input type="text" name="devise" value={formData.devise} onChange={handleChange} className="input input-bordered w-full" />
             </div>
-          </div>
-
-          <div>
-            <label className="label"><span className="label-text font-medium">Système de notation</span></label>
-            <select name="systeme_notation" value={formData.systeme_notation} onChange={handleChange} className="select select-bordered w-full">
-              <option value="sur20">Sur 20</option>
-              <option value="sur100">Sur 100</option>
-              <option value="lettre">Lettres (A, B, C)</option>
-            </select>
+            <div>
+              <label className="label"><span className="label-text font-medium">Système de notation</span></label>
+              <select name="systeme_notation" value={formData.systeme_notation} onChange={handleChange} className="select select-bordered w-full">
+                <option value="sur20">Sur 20</option>
+                <option value="sur100">Sur 100</option>
+                <option value="lettre">Lettres (A, B, C)</option>
+              </select>
+            </div>
           </div>
 
           <div>
