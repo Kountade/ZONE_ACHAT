@@ -44,6 +44,16 @@ import UniteMesureForm from './components/logistique/UniteMesureForm';
 // Modules Stocks
 import StocksList from './components/logistique/StocksList';
 import LotsList from './components/logistique/LotsList';
+import AddStockManual from './components/inventaire/AddStockManual';
+import MouvementsStock from './components/logistique/MouvementsStock';
+
+
+import EntrepotForm from './components/logistique/EntrepotForm';
+import Entrepots from './components/logistique/Entrepots';
+import EntrepotDetails from './components/logistique/EntrepotDetails';
+import Transferts from './components/logistique/Transferts';
+import TransfertForm from './components/logistique/TransfertForm';
+import TransfertDetails from './components/logistique/TransfertDetails';
 
 
 
@@ -143,6 +153,20 @@ function App() {
                 <Route path="/unites-mesure/nouveau" element={<UniteMesureForm />} />
                 <Route path="/unites-mesure/:id/modifier" element={<UniteMesureForm />} />
 
+                <Route path="/add-stock-manual" element={<AddStockManual />} />
+                <Route path="/mouvements-stock" element={<MouvementsStock />} />
+
+                  <Route path="/entrepots" element={<Entrepots />} />
+                <Route path="/entrepots/nouveau" element={<EntrepotForm />} />
+                <Route path="/entrepots/:id/modifier" element={<EntrepotForm />} />
+                <Route path="/entrepots/:id" element={<EntrepotDetails />} />
+
+                <Route path="/transferts" element={<Transferts />} />
+                <Route path="/transferts/nouveau" element={<TransfertForm />} />
+                <Route path="/transferts/:id" element={<TransfertDetails />} />
+
+
+                <Route path="/alertes-tresorerie" element={<AlertesTresorerie />} />
             
 
              
