@@ -23,7 +23,7 @@ import PasswordReset from './components/auth/PasswordReset';
 // ============ COMPOSANTS ERP ADMIN ============
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/common/ProtectedRoutes';
-import DashboardGlobal from './components/dashboard/DashboardGlobal';
+
 
 import EtablissementSettings from './components/settings/EtablissementSettings';
   
@@ -129,7 +129,7 @@ function App() {
               <Route element={<ProtectedRoute />}>
              
                
-              <Route path="/dashboard" element={<DashboardGlobal />} />
+      
 
 
   <Route path="/company-config" element={<EtablissementSettings />} />
@@ -166,7 +166,7 @@ function App() {
                 <Route path="/transferts/:id" element={<TransfertDetails />} />
 
 
-                <Route path="/alertes-tresorerie" element={<AlertesTresorerie />} />
+                
             
 
              
