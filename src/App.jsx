@@ -56,6 +56,27 @@ import TransfertForm from './components/logistique/TransfertForm';
 import TransfertDetails from './components/logistique/TransfertDetails';
 
 
+// Modules Fournisseurs
+import FournisseursList from './components/achatsfournisseurs/FournisseursList';
+import FournisseursForm from './components/achatsfournisseurs/FournisseursForm';
+import FournisseursDetails from './components/achatsfournisseurs/FournisseursDetails';
+
+// Modules Commandes
+import CommandesList from './components/achatsfournisseurs/CommandesList';
+import CommandeForm from './components/achatsfournisseurs/CommandeForm';
+import CommandeDetails from './components/achatsfournisseurs/CommandeDetails';
+import CommandePdf from './components/achatsfournisseurs/CommandePdf';
+import ReceptionsList from './components/achatsfournisseurs/ReceptionsList';
+import ReceptionForm from './components/achatsfournisseurs/ReceptionForm';
+import ReceptionDetails from './components/achatsfournisseurs/ReceptionDetails';
+import ReceptionPdf from './components/achatsfournisseurs/ReceptionPdf';
+
+
+
+import PurchaseAlerts from './components/achatsfournisseurs/PurchaseAlerts';
+
+
+
 
 
 
@@ -169,6 +190,26 @@ function App() {
                 
             
 
+                {/* ==================== ACHATS & FOURNISSEURS ==================== */}
+                <Route path="/fournisseurs" element={<FournisseursList />} />
+                <Route path="/fournisseurs/nouveau" element={<FournisseursForm />} />
+                <Route path="/fournisseurs/:id/modifier" element={<FournisseursForm />} />
+                <Route path="/fournisseurs/:id" element={<FournisseursDetails />} />
+
+                {/* Commandes fournisseurs */}
+                <Route path="/commandes-fournisseurs" element={<CommandesList />} />
+                <Route path="/commandes-fournisseurs/nouveau" element={<CommandeForm />} />
+                <Route path="/commandes-fournisseurs/:id/modifier" element={<CommandeForm />} />
+                <Route path="/commandes-fournisseurs/:id" element={<CommandeDetails />} />
+                <Route path="/commandes-fournisseurs/:id/pdf" element={<CommandePdf />} />
+
+                <Route path="/receptions" element={<ReceptionsList />} />
+                <Route path="/receptions/nouveau" element={<ReceptionForm />} />
+                <Route path="/receptions/:id" element={<ReceptionDetails />} />
+                <Route path="/receptions/:id/pdf" element={<ReceptionPdf />} />
+
+                <Route path="/purchase-alerts" element={<PurchaseAlerts />} />
+                
              
       
 
