@@ -75,7 +75,7 @@ const PurchaseReturnsList = () => {
   }, [statusFilter, dateFrom, dateTo]);
 
   const handleDownloadPdf = (returnId) => {
-    navigate(`/purchase-returns/${returnId}/pdf`);
+    navigate(`/retours-fournisseurs/${returnId}/pdf`);
   };
 
   const filteredReturns = returns.filter(returnItem => {
@@ -174,7 +174,7 @@ const PurchaseReturnsList = () => {
             <button onClick={fetchReturns} className="btn btn-sm sm:btn-md btn-outline gap-2">
               <RefreshCw className="w-4 h-4" /> Actualiser
             </button>
-            <button onClick={() => navigate('/purchase-returns/nouveau')} className="btn btn-sm sm:btn-md bg-gradient-to-r from-primary to-primary/80 text-white border-none shadow-lg gap-2">
+            <button onClick={() => navigate('/retours-fournisseurs/nouveau')} className="btn btn-sm sm:btn-md bg-gradient-to-r from-primary to-primary/80 text-white border-none shadow-lg gap-2">
               <Plus className="w-4 h-4" /> Nouveau retour
             </button>
           </div>
@@ -271,7 +271,7 @@ const PurchaseReturnsList = () => {
                   <td colSpan="7" className="text-center py-16">
                     <ArrowLeftRight className="w-16 h-16 text-gray-300 mx-auto mb-3" />
                     <p className="text-gray-500 font-medium">Aucun retour trouvé</p>
-                    <button onClick={() => navigate('/purchase-returns/nouveau')} className="btn btn-primary btn-sm gap-2 mt-3">
+                    <button onClick={() => navigate('/retours-fournisseurs/nouveau')} className="btn btn-primary btn-sm gap-2 mt-3">
                       <Plus className="w-4 h-4" /> Créer un retour
                     </button>
                   </td>
@@ -295,7 +295,7 @@ const PurchaseReturnsList = () => {
                     <td className="py-3 text-center">
                       <div className="flex justify-center gap-1">
                         <button 
-                          onClick={() => navigate(`/purchase-returns/${returnItem.id}`)} 
+                          onClick={() => navigate(`/retours-fournisseurs/${returnItem.id}`)} 
                           className="btn btn-ghost btn-sm btn-circle"
                           title="Voir détails"
                         >

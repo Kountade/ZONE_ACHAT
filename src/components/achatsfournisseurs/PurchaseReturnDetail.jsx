@@ -8,7 +8,7 @@ import {
   Clock, User, AlertCircle, Loader2, Download
 } from 'lucide-react';
 
-const PurchaseReturnDetails = () => {
+const PurchaseReturnDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const [returnItem, setReturnItem] = useState(null);
@@ -146,7 +146,7 @@ const PurchaseReturnDetails = () => {
           <AlertCircle className="w-20 h-20 text-error mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-700 mb-2">Erreur</h2>
           <p className="text-gray-500 mb-6">{error}</p>
-          <button onClick={() => navigate('/purchase-returns')} className="btn btn-primary">
+          <button onClick={() => navigate('/retours-fournisseurs')} className="btn btn-primary">
             Retour à la liste
           </button>
         </div>
@@ -163,7 +163,7 @@ const PurchaseReturnDetails = () => {
         <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="flex items-center gap-4">
-              <button onClick={() => navigate('/purchase-returns')} className="btn btn-ghost btn-sm gap-2">
+              <button onClick={() => navigate('/retours-fournisseurs')} className="btn btn-ghost btn-sm gap-2">
                 <ArrowLeft className="w-4 h-4" /> Retour
               </button>
               <div className="flex items-center gap-3">
@@ -342,4 +342,4 @@ const PurchaseReturnDetails = () => {
   );
 };
 
-export default PurchaseReturnDetails;
+export default PurchaseReturnDetail;

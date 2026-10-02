@@ -126,7 +126,7 @@ const PurchaseReturnForm = () => {
     } catch (error) {
       console.error('Erreur:', error);
       showNotification('Impossible de charger le retour', 'error');
-      navigate('/purchase-returns');
+      navigate('/retours-fournisseurs');
     } finally {
       setFetching(false);
     }
@@ -221,7 +221,7 @@ const PurchaseReturnForm = () => {
         showNotification('Retour créé avec succès', 'success');
       }
       
-      setTimeout(() => navigate('/purchase-returns'), 1500);
+      setTimeout(() => navigate('/retours-fournisseurs'), 1500);
       
     } catch (error) {
       console.error('Erreur complète:', error);
@@ -281,7 +281,7 @@ const PurchaseReturnForm = () => {
 
       <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex items-center gap-4 mb-6">
-          <button onClick={() => navigate('/purchase-returns')} className="btn btn-ghost btn-sm gap-2">
+          <button onClick={() => navigate('/retours-fournisseurs')} className="btn btn-ghost btn-sm gap-2">
             <ArrowLeft className="w-4 h-4" /> Retour
           </button>
           <div>
@@ -459,7 +459,7 @@ const PurchaseReturnForm = () => {
                 )}
 
                 <div className="flex gap-3 pt-4">
-                  <button type="button" onClick={() => navigate('/purchase-returns')} className="btn btn-ghost flex-1" disabled={loading}>
+                  <button type="button" onClick={() => navigate('/retours-fournisseurs')} className="btn btn-ghost flex-1" disabled={loading}>
                     Annuler
                   </button>
                   <button type="submit" onClick={handleSubmit} className="btn btn-primary flex-1 gap-2" disabled={loading}>
