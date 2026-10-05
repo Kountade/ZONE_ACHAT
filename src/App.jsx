@@ -86,7 +86,36 @@ import PurchaseReturnDetail from './components/achatsfournisseurs/PurchaseReturn
 import PurchaseReturnPdf from './components/achatsfournisseurs/PurchaseReturnPdf';
 
 
+// Modules Ventes/Clients
+import ClientsList from './components/ventesclients/ClientsList';
+import ClientForm from './components/ventesclients/ClientForm';
+import ClientDetail from './components/ventesclients/ClientDetail';
+import VentesList from './components/ventesclients/VentesList';
+import VenteForm from './components/ventesclients/VenteForm';
+import VenteDetail from './components/ventesclients/VenteDetail';
+import VentePdf from './components/ventesclients/VentePdf';
+import DevisList from './components/ventesclients/DevisList';
+import DevisForm from './components/ventesclients/DevisForm';
+import DevisDetail from './components/ventesclients/DevisDetail';
+import DevisPdf from './components/ventesclients/DevisPdf';
+import FacturesList from './components/ventesclients/FacturesList';
+import FactureForm from './components/ventesclients/FactureForm';
+import FactureDetail from './components/ventesclients/FactureDetail';
+import FacturePdf from './components/ventesclients/FacturePdf';
+import PaiementsList from './components/ventesclients/PaiementsList';
+import PaiementForm from './components/ventesclients/PaiementForm';
+import PaiementDetail from './components/ventesclients/PaiementDetail';
+import PaiementPdf from './components/ventesclients/PaiementPdf';
 
+import WalletsList from './components/Wallets/WalletsList';
+import WalletForm from './components/Wallets/WalletForm';
+import WalletDeposit from './components/Wallets/WalletDeposit';
+import WalletDetail from './components/Wallets/WalletDetail';
+import WalletPay from './components/Wallets/WalletPay';
+
+
+import PosScanSimple from './components/ventesclients/PosScanSimple';
+import PosForm from './components/ventesclients/PosForm';
 
 
 
@@ -197,8 +226,46 @@ function App() {
                 <Route path="/transferts/nouveau" element={<TransfertForm />} />
                 <Route path="/transferts/:id" element={<TransfertDetails />} />
 
+ {/* ==================== VENTES ==================== */}
+                <Route path="/ventes" element={<VentesList />} />
+                <Route path="/ventes/nouveau" element={<VenteForm />} />
+                <Route path="/ventes/:id" element={<VenteDetail />} />
+                <Route path="/ventes/:id/modifier" element={<VenteForm />} />
+                <Route path="/ventes/:id/pdf" element={<VentePdf />} />
 
+                <Route path="/devis" element={<DevisList />} />
+                <Route path="/devis/nouveau" element={<DevisForm />} />
+                <Route path="/devis/:id" element={<DevisDetail />} />
+                <Route path="/devis/:id/modifier" element={<DevisForm />} />
+                <Route path="/devis/:id/pdf" element={<DevisPdf />} />
+
+               
+                <Route path="/clients" element={<ClientsList />} />
+                <Route path="/clients/nouveau" element={<ClientForm />} />
+                <Route path="/clients/:id/modifier" element={<ClientForm />} />
+                <Route path="/clients/:id" element={<ClientDetail />} />
+
+
+                <Route path="/factures" element={<FacturesList />} />
+                <Route path="/factures/nouvelle" element={<FactureForm />} />
+                <Route path="/factures/:id" element={<FactureDetail />} />
+                <Route path="/factures/:id/modifier" element={<FactureForm />} />
+                <Route path="/factures/:id/pdf" element={<FacturePdf />} />
+                <Route path="/pos-scan" element={<PosScanSimple />} />
+                <Route path="point-de-vente" element={<PosForm />} />
                 
+                <Route path="/paiements" element={<PaiementsList />} />
+                <Route path="/paiements/nouveau" element={<PaiementForm />} />
+                <Route path="/paiements/:id" element={<PaiementDetail />} />
+                <Route path="/paiements/:id/modifier" element={<PaiementForm />} />
+                <Route path="/paiements/:id/pdf" element={<PaiementPdf />} />
+
+                 <Route path="/wallets" element={<WalletsList />} />
+                <Route path="/wallets/nouveau" element={<WalletForm />} />
+                <Route path="/wallets/:id/deposit" element={<WalletDeposit />} />
+                <Route path="/wallets/:id" element={<WalletDetail />} />
+                <Route path="/wallets/:walletId/pay" element={<WalletPay />} />
+             
             
 
                 {/* ==================== ACHATS & FOURNISSEURS ==================== */}
@@ -238,6 +305,7 @@ function App() {
                 <Route path="/retours-fournisseurs/nouveau" element={<PurchaseReturnForm />} />
                 <Route path="/retours-fournisseurs/:id" element={<PurchaseReturnDetail />} />
                 <Route path="/retours-fournisseurs/:id/pdf" element={<PurchaseReturnPdf />} />
+                
       
 
 
