@@ -113,10 +113,44 @@ import WalletDeposit from './components/Wallets/WalletDeposit';
 import WalletDetail from './components/Wallets/WalletDetail';
 import WalletPay from './components/Wallets/WalletPay';
 
-
 import PosScanSimple from './components/ventesclients/PosScanSimple';
 import PosForm from './components/ventesclients/PosForm';
 
+import CompteListe from './components/finances/CompteListe';
+import CompteDetail from './components/finances/CompteDetail';
+import CompteForm from './components/finances/CompteForm';
+
+import CaissesForm from './components/tresorerie/CaissesForm';
+import CaissesList from './components/tresorerie/CaissesList';
+import CaissesDetail from './components/tresorerie/CaissesDetail';
+
+import ComptesBancairesList from './components/tresorerie/ComptesBancairesList';
+import CompteBancaireForm from './components/tresorerie/ComptesBancairesForm';
+import CompteBancaireDetail from './components/tresorerie/CompteBancaireDetail';
+
+import DashboardTresorerie from './components/tresorerie/DashboardTresorerie';
+
+import PrevisionsList from './components/tresorerie/PrevisionsList';
+import PrevisionsForm from './components/tresorerie/PrevisionsForm';
+import PrevisionsDetail from './components/tresorerie/PrevisionsDetail';
+import TresorerieJournaliere from './components/tresorerie/TresorerieJournaliere';
+import TresorerieJournaliereDetail from './components/tresorerie/TresorerieJournaliereDetail';
+import RapprochementBancaireList from './components/tresorerie/RapprochementBancaireList';
+import RapprochementBancaireForm from './components/tresorerie/RapprochementBancaireForm';
+import RapprochementBancaireDetail from './components/tresorerie/RapprochementBancaireDetail';
+
+import MouvementsTresorerieList from './components/tresorerie/MouvementsTresorerieList';
+import MouvementTresorerieDetail from './components/tresorerie/MouvementTresorerieDetail';
+
+import FraisList from './components/tresorerie/FraisList';
+import FraisDetail from './components/tresorerie/FraisDetail';
+import FraisForm from './components/tresorerie/FraisForm';
+import AlertesTresorerie from './components/tresorerie/AlertesTresorerie';
+
+
+import Dashboard from './components/dashboard/Dashboard';
+import Statistiques from './components/dashboard/Statistiques';
+import Analyses from './components/dashboard/Analyses';
 
 
 
@@ -190,7 +224,9 @@ function App() {
               <Route element={<ProtectedRoute />}>
              
                
-      
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/statistiques" element={<Statistiques />} />
+                <Route path="/analyses" element={<Analyses />} />
 
 
   <Route path="/company-config" element={<EtablissementSettings />} />
@@ -260,7 +296,7 @@ function App() {
                 <Route path="/paiements/:id/modifier" element={<PaiementForm />} />
                 <Route path="/paiements/:id/pdf" element={<PaiementPdf />} />
 
-                 <Route path="/wallets" element={<WalletsList />} />
+                <Route path="/wallets" element={<WalletsList />} />
                 <Route path="/wallets/nouveau" element={<WalletForm />} />
                 <Route path="/wallets/:id/deposit" element={<WalletDeposit />} />
                 <Route path="/wallets/:id" element={<WalletDetail />} />
@@ -308,8 +344,50 @@ function App() {
                 
       
 
+                <Route path="/comptes" element={<CompteListe />} />
+                <Route path="/comptes/nouveau" element={<CompteForm />} />
+                <Route path="/comptes/:id" element={<CompteDetail />} />
+                <Route path="/comptes/:id/modifier" element={<CompteForm />} />
 
+                   
 
+                <Route path="/dashboard-tresorerie" element={<DashboardTresorerie />} />
+                <Route path="/caisses" element={<CaissesList />} />
+                <Route path="/caisses/nouveau" element={<CaissesForm />} />
+                <Route path="/caisses/:id/modifier" element={<CaissesForm />} />
+                <Route path="/caisses/:id" element={<CaissesDetail />} />
+
+                <Route path="/comptes-bancaires" element={<ComptesBancairesList />} />
+                <Route path="/comptes-bancaires/nouveau" element={<CompteBancaireForm />} />
+                <Route path="/comptes-bancaires/:id" element={<CompteBancaireDetail />} />
+                <Route path="/comptes-bancaires/modifier/:id" element={<CompteBancaireForm />} />
+
+                <Route path="/mouvements-tresorerie" element={<MouvementsTresorerieList />} />
+                <Route path="/mouvements-tresorerie/:id" element={<MouvementTresorerieDetail />} />
+                
+                <Route path="/previsions" element={<PrevisionsList />} />
+                <Route path="/previsions/nouveau" element={<PrevisionsForm />} />
+                <Route path="/previsions/:id" element={<PrevisionsDetail />} />
+                <Route path="/previsions/modifier/:id" element={<PrevisionsForm />} />
+                
+                <Route path="/rapprochement-bancaire" element={<RapprochementBancaireList />} />
+                <Route path="/rapprochement-bancaire/nouveau" element={<RapprochementBancaireForm isEdit={false} />} />
+                <Route path="/rapprochement-bancaire/modifier/:id" element={<RapprochementBancaireForm isEdit={true} />} />
+                <Route path="/rapprochement-bancaire/:id" element={<RapprochementBancaireDetail />} />
+
+                <Route path="/mouvements-tresorerie" element={<MouvementsTresorerieList />} />
+                <Route path="/mouvements-tresorerie/:id" element={<MouvementTresorerieDetail />} />
+
+                <Route path="/tresorerie-journaliere/:id" element={<TresorerieJournaliereDetail />} />
+                <Route path="/tresorerie-journaliere" element={<TresorerieJournaliere />} />
+
+                
+                <Route path="/frais" element={<FraisList />} />
+                <Route path="/frais/nouveau" element={<FraisForm />} />
+                <Route path="/frais/:id" element={<FraisDetail />} />
+                <Route path="/frais/modifier/:id" element={<FraisForm />} />
+
+                    <Route path="/alertes-tresorerie" element={<AlertesTresorerie />} />
                 {/* Profil  />*/}
 
 
