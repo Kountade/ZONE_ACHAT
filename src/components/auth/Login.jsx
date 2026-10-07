@@ -14,12 +14,12 @@ import {
   Store,
   BarChart3,
   Users,
-  Settings,
   Shield,
   Sparkles,
   Truck,
   CreditCard,
-  Headphones
+  Headphones,
+  UserPlus
 } from 'lucide-react'
 
 const Login = () => {
@@ -64,6 +64,9 @@ const Login = () => {
     fetchEtablissement()
   }, [])
 
+  // ============================================================
+  // CONNEXION
+  // ============================================================
   const handleLogin = async (data) => {
     setLoading(true)
     setShowMessage(false)
@@ -83,20 +86,46 @@ const Login = () => {
         localStorage.removeItem('rememberedEmail')
       }
 
+      // ✅ Message d'avertissement si client non approuvé
+      const user = response.data.user
+      const warning = response.data.warning
+
+      if (warning) {
+        setMessageText(warning)
+        setMessageType('error')
+        setShowMessage(true)
+        setTimeout(() => navigate('/dashboard'), 2500)
+        return
+      }
+
       setMessageText('Connexion réussie ! Redirection...')
       setMessageType('success')
       setShowMessage(true)
 
-      setTimeout(() => navigate('/dashboard'), 1500)
+      // ✅ Redirection selon le rôle
+      setTimeout(() => {
+        if (user?.role === 'client') {
+          navigate('/client/dashboard')
+        } else {
+          navigate('/dashboard')
+        }
+      }, 1500)
 
     } catch (error) {
       let errorMessage = 'Échec de connexion. Veuillez réessayer.'
 
       if (error.response) {
-        if (error.response.status === 401) errorMessage = 'Email ou mot de passe incorrect'
-        else if (error.response.status === 403) errorMessage = 'Compte désactivé.'
-        else if (error.response.status === 429) errorMessage = 'Trop de tentatives. Patientez 5 minutes.'
-        else if (error.response.data?.error) errorMessage = error.response.data.error
+        if (error.response.status === 401) {
+          errorMessage = error.response.data?.error || 'Email ou mot de passe incorrect'
+        } else if (error.response.status === 403) {
+          errorMessage = 'Compte désactivé.'
+        } else if (error.response.status === 429) {
+          errorMessage = 'Trop de tentatives. Patientez 5 minutes.'
+        } else if (error.response.data?.error) {
+          errorMessage = error.response.data.error
+        } else if (error.response.data?.detail) {
+          errorMessage = error.response.data.detail
+        }
       } else if (error.request) {
         errorMessage = 'Serveur inaccessible. Vérifiez votre connexion.'
       }
@@ -329,12 +358,18 @@ const Login = () => {
               )}
             </button>
 
-            {/* Lien Inscription */}
+            {/* ================================================================
+                ✅ LIEN INSCRIPTION CLIENT → /register-client
+                ================================================================ */}
             <div className="text-center mt-6">
               <p className="text-sm text-slate-500">
                 Pas encore de compte ?{' '}
-                <Link to="/register" className="text-orange-500 font-semibold hover:text-orange-600 hover:underline">
-                  Créer un compte
+                <Link
+                  to="/register-client"
+                  className="inline-flex items-center gap-1 text-orange-500 font-semibold hover:text-orange-600 hover:underline"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  Créer un compte client
                 </Link>
               </p>
             </div>

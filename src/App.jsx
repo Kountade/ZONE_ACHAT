@@ -16,7 +16,9 @@ import TeamPage from './components/site/TeamPage';
 
 // ============ COMPOSANTS AUTHENTIFICATION ============
 import Register from './components/auth/Register';
+import RegisterClient from './components/auth/RegisterClient';
 import Login from './components/auth/Login';
+import ClientsApproval from './components/users/ClientsApproval';
 import PasswordResetRequest from './components/auth/PasswordResetRequest';
 import PasswordReset from './components/auth/PasswordReset';
 
@@ -177,6 +179,7 @@ function App() {
   const publicRoutes = [
     "/", 
     "/register", 
+    "/register-client", 
     "/login",
     "/about",
     "/programmes",
@@ -212,6 +215,7 @@ function App() {
            <Route path="/team" element={<TeamPage />} />
           {/* Pages d'authentification */}
           <Route path="/register" element={<Register />} />
+          <Route path="/register-client" element={<RegisterClient />} /> 
           <Route path="/login" element={<Login />} />
           <Route path="/request/password_reset" element={<PasswordResetRequest />} />
           <Route path="/password-reset/:token" element={<PasswordReset />} />
@@ -230,7 +234,7 @@ function App() {
 
 
   <Route path="/company-config" element={<EtablissementSettings />} />
- 
+ <Route path="/clients-approval" element={<ClientsApproval />} />
                
        {/* ==================== PRODUITS ==================== */}
 
