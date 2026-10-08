@@ -92,6 +92,7 @@ import PurchaseReturnPdf from './components/achatsfournisseurs/PurchaseReturnPdf
 import ClientsList from './components/ventesclients/ClientsList';
 import ClientForm from './components/ventesclients/ClientForm';
 import ClientDetail from './components/ventesclients/ClientDetail';
+import ClientOrders from './components/ventesclients/ClientOrders';
 import VentesList from './components/ventesclients/VentesList';
 import VenteForm from './components/ventesclients/VenteForm';
 import VenteDetail from './components/ventesclients/VenteDetail';
@@ -153,6 +154,7 @@ import AlertesTresorerie from './components/tresorerie/AlertesTresorerie';
 import Dashboard from './components/dashboard/Dashboard';
 import Statistiques from './components/dashboard/Statistiques';
 import Analyses from './components/dashboard/Analyses';
+import ClientDashboard from './components/dashboard/ClientDashboard';
 
 
 
@@ -231,6 +233,7 @@ function App() {
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/statistiques" element={<Statistiques />} />
                 <Route path="/analyses" element={<Analyses />} />
+                <Route path="/client/dashboard" element={<ClientDashboard />} />
 
 
   <Route path="/company-config" element={<EtablissementSettings />} />
@@ -284,7 +287,7 @@ function App() {
                 <Route path="/clients/nouveau" element={<ClientForm />} />
                 <Route path="/clients/:id/modifier" element={<ClientForm />} />
                 <Route path="/clients/:id" element={<ClientDetail />} />
-
+                <Route path="/client/orders" element={<ClientOrders />} />
 
                 <Route path="/factures" element={<FacturesList />} />
                 <Route path="/factures/nouvelle" element={<FactureForm />} />
