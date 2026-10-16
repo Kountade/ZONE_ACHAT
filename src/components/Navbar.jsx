@@ -45,7 +45,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [openSections, setOpenSections] = useState({
     'TABLEAU DE BORD': true, 'VENTES': true, 'PORTE-MONNAIE CLIENTS': false,
-    'STOCK CLIENTS': true,                                     // 🆕
+    'STOCK CLIENTS': true,
     'PRODUITS & STOCKS': true, 'ACHATS & FOURNISSEURS': false, 'FINANCES': true,
     'TRÉSORERIE': false, 'LIVRAISONS': false, 'PARAMÈTRES': false,
     'MON ESPACE CLIENT': true, 'MON ESPACE': false
@@ -78,7 +78,9 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
 
   // Compteurs clients
   const [clientsEnAttente, setClientsEnAttente] = useState(0);
-  const [clientsAvecStock, setClientsAvecStock] = useState(0);   // 🆕
+  const [clientsAvecStock, setClientsAvecStock] = useState(0);
+  const [deliveriesPending, setDeliveriesPending] = useState(0);           // 🆕
+  const [deliveriesInTransit, setDeliveriesInTransit] = useState(0);       // 🆕
 
   // ============================================================
   // RÉCUPÉRATION UTILISATEUR
@@ -171,10 +173,17 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
             .catch(() => ({ data: { count: 0 } }));
           setClientsEnAttente(pendingRes.data?.count || 0);
 
-          // 🆕 Clients avec stock
+          // Clients avec stock
           const stockRes = await axiosInstance.get('/client-stock/list/')
             .catch(() => ({ data: { count: 0 } }));
           setClientsAvecStock(stockRes.data?.count || 0);
+
+          // 🆕 Livraisons en attente
+          const deliveriesRes = await axiosInstance.get('/client-delivery/list/')
+            .catch(() => ({ data: { stats: {} } }));
+          const stats = deliveriesRes.data?.stats || {};
+          setDeliveriesPending(stats.pending || 0);
+          setDeliveriesInTransit(stats.in_transit || 0);
         } catch (e) {
           console.error('Erreur compteurs admin:', e);
         }
@@ -284,7 +293,6 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
           path: '/client/wallet',
           permission: true
         },
-        // 🆕 SECTION STOCK CLIENT
         {
           id: 'client-stock',
           text: 'Mon Stock Produits',
@@ -297,6 +305,14 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
           text: 'Historique Mouvements',
           icon: History,
           path: '/client/stock/movements',
+          permission: true
+        },
+        // 🆕 SUIVI LIVRAISONS
+        {
+          id: 'client-deliveries',
+          text: 'Suivi Livraisons',
+          icon: Truck,
+          path: '/client/deliveries',
           permission: true
         },
         { id: 'separator-client-3', separator: true, permission: true },
@@ -359,38 +375,59 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
           { id: 'wallet-pay', text: 'Paiement avec Porte-monnaie', icon: CreditCard, path: '/wallets/paiement', permission: isAdmin || isGestionnaire }
         ]
       },
-      // 🆕 SECTION STOCK CLIENTS
+      // ============================================================
+      // SECTION STOCK CLIENTS (ADMIN)
+      // ============================================================
       {
         name: 'STOCK CLIENTS', icon: PackageSearch,
         items: [
-          { 
-            id: 'client-stocks', 
-            text: 'Stocks Clients', 
-            icon: PackageSearch, 
-            path: '/client-stocks', 
+          {
+            id: 'client-stocks',
+            text: 'Stocks Clients',
+            icon: PackageSearch,
+            path: '/client-stocks',
             permission: isAdmin || isGestionnaire,
             badge: clientsAvecStock > 0 ? clientsAvecStock : 0
           },
-          { 
-            id: 'client-stock-deposit', 
-            text: 'Dépôt Marchandises', 
-            icon: PackagePlus, 
-            path: '/client-stocks/depot', 
-            permission: isAdmin || isGestionnaire 
+          {
+            id: 'client-stock-deposit',
+            text: 'Dépôt Marchandises',
+            icon: PackagePlus,
+            path: '/client-stocks/depot',
+            permission: isAdmin || isGestionnaire
           },
-          { 
-            id: 'client-stock-withdraw', 
-            text: 'Retrait Marchandises', 
-            icon: PackageMinus, 
-            path: '/client-stocks/retrait', 
-            permission: isAdmin || isGestionnaire 
+          {
+            id: 'client-stock-withdraw',
+            text: 'Retrait Marchandises',
+            icon: PackageMinus,
+            path: '/client-stocks/retrait',
+            permission: isAdmin || isGestionnaire
           },
-          { 
-            id: 'client-stock-movements-admin', 
-            text: 'Mouvements Stock Client', 
-            icon: History, 
-            path: '/client-stocks/mouvements', 
-            permission: isAdmin || isGestionnaire 
+          {
+            id: 'client-stock-movements-admin',
+            text: 'Mouvements Stock Client',
+            icon: History,
+            path: '/client-stocks/mouvements',
+            permission: isAdmin || isGestionnaire
+          },
+          { id: 'separator-stock-clients', separator: true, permission: true },
+          // 🆕 LIVRAISONS CLIENTS
+          {
+            id: 'client-deliveries-list',
+            text: 'Livraisons Clients',
+            icon: Truck,
+            path: '/client-deliveries',
+            permission: isAdmin || isGestionnaire,
+            badge: (deliveriesPending + deliveriesInTransit) > 0
+              ? (deliveriesPending + deliveriesInTransit)
+              : 0
+          },
+          {
+            id: 'client-delivery-create',
+            text: 'Nouvelle Livraison',
+            icon: PlusCircle,
+            path: '/client-deliveries/nouveau',
+            permission: isAdmin || isGestionnaire
           }
         ]
       },
@@ -722,6 +759,20 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                   <UserRoundCheck className="w-5 h-5" />
                   <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center animate-pulse">
                     {clientsEnAttente > 9 ? '9+' : clientsEnAttente}
+                  </span>
+                </Link>
+              )}
+
+              {/* 🆕 Badge livraisons en attente */}
+              {(isAdmin || isGestionnaire) && (deliveriesPending > 0) && (
+                <Link
+                  to="/client-deliveries"
+                  className="relative p-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
+                  title="Livraisons en attente"
+                >
+                  <Truck className="w-5 h-5" />
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                    {deliveriesPending > 9 ? '9+' : deliveriesPending}
                   </span>
                 </Link>
               )}

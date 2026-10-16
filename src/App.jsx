@@ -159,6 +159,14 @@ import UtilisateurForm from './components/users/UtilisateurForm';
 import UtilisateurDetails from './components/users/UtilisateurDetail';
 
 
+// Imports
+import ClientDeliveriesList from './components/ventesclients/ClientDeliveriesList';
+import ClientDeliveryForm from './components/ventesclients/ClientDeliveryForm';
+import ClientDeliveryDetail from './components/ventesclients/ClientDeliveryDetail';
+import MyDeliveries from './components/ventesclients/MyDeliveries';
+
+
+
 
 
 
@@ -285,6 +293,16 @@ function App() {
                 <Route path="/utilisateurs/ajouter" element={<UtilisateurForm />} />
                 <Route path="/utilisateurs/:id" element={<UtilisateurDetails />} />
                 <Route path="/utilisateurs/:id/modifier" element={<UtilisateurForm />} />
+
+               
+{/* ============ ADMIN ============ */}
+<Route path="/client-deliveries" element={<ClientDeliveriesList />} />
+<Route path="/client-deliveries/nouveau" element={<ClientDeliveryForm />} />
+<Route path="/client-deliveries/:id" element={<ClientDeliveryDetail />} />
+
+{/* ============ CLIENT ============ */}
+<Route path="/client/deliveries" element={<MyDeliveries />} />
+
 
                 {/* ============ ADMIN ============ */}
 <Route path="/client-stocks" element={<ClientStocksList />} />
