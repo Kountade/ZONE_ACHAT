@@ -1,52 +1,78 @@
 // src/components/dashboard/ClientDashboard.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-import { Pie } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, BarElement, CategoryScale, LinearScale } from 'chart.js';
+import { Pie, Bar } from 'react-chartjs-2';
 import AxiosInstance from '../AxiosInstance';
 import {
   Package, ShoppingBag, Truck, DollarSign, AlertTriangle,
   TrendingUp, TrendingDown, Users, Warehouse, Clock,
   RefreshCw, Eye, Calendar, CreditCard, FileText, Receipt,
-  Wallet, ShoppingBasket, ArrowRight, CheckCircle, UserCircle
+  Wallet, ShoppingBasket, ArrowRight, CheckCircle, UserCircle,
+  PackageSearch, Boxes, Layers, History
 } from 'lucide-react';
 
 // Enregistrement des composants Chart.js
-ChartJS.register(ArcElement, Tooltip, Legend);
+ChartJS.register(
+  ArcElement, Tooltip, Legend,
+  BarElement, CategoryScale, LinearScale
+);
 
 const ClientDashboard = () => {
   const [summary, setSummary] = useState(null);
+  const [stockData, setStockData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchSummary = async () => {
+  // ============================================================
+  // CHARGEMENT DES DONNÉES
+  // ============================================================
+  const fetchAll = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await AxiosInstance.get('/client-space/dashboard/');
-      setSummary(response.data);
-    } catch (err) {
-      console.error('Erreur chargement dashboard client:', err);
-      let errorMessage = 'Impossible de charger les données de votre espace';
-      if (err.response) {
-        const data = err.response.data;
-        errorMessage = data.error || data.detail || data.message || `Erreur ${err.response.status}`;
-        setError(`Erreur ${err.response.status}: ${errorMessage}`);
-      } else if (err.request) {
-        setError('Aucune réponse du serveur. Vérifiez votre connexion.');
+      // Charger en parallèle : dashboard + stock
+      const [dashRes, stockRes] = await Promise.allSettled([
+        AxiosInstance.get('/client-space/dashboard/'),
+        AxiosInstance.get('/client-space/my-stock/'),
+      ]);
+
+      // Dashboard
+      if (dashRes.status === 'fulfilled') {
+        setSummary(dashRes.value.data);
       } else {
-        setError(`Erreur: ${err.message}`);
+        const err = dashRes.reason;
+        console.error('Erreur dashboard:', err);
+        const errorMessage =
+          err.response?.data?.error ||
+          err.response?.data?.detail ||
+          `Erreur ${err.response?.status || ''}`;
+        setError(`Erreur dashboard : ${errorMessage}`);
       }
+
+      // Stock
+      if (stockRes.status === 'fulfilled') {
+        setStockData(stockRes.value.data);
+      } else {
+        console.error('Erreur stock:', stockRes.reason);
+        setStockData({ count: 0, total_quantity: 0, total_value: 0, results: [] });
+      }
+
+    } catch (err) {
+      console.error('Erreur générale:', err);
+      setError('Impossible de charger les données de votre espace');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchSummary();
+    fetchAll();
   }, []);
 
-  // Formatage
+  // ============================================================
+  // FORMATAGE
+  // ============================================================
   const formatCurrency = (num) => {
     if (num === undefined || num === null) return '0 FCFA';
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF' })
@@ -93,7 +119,7 @@ const ClientDashboard = () => {
         <div className="alert alert-error shadow-lg">
           <AlertTriangle className="w-6 h-6" />
           <span>{error}</span>
-          <button className="btn btn-sm btn-ghost" onClick={fetchSummary}>
+          <button className="btn btn-sm btn-ghost" onClick={fetchAll}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Réessayer
           </button>
@@ -155,16 +181,13 @@ const ClientDashboard = () => {
     plugins: {
       legend: {
         position: 'bottom',
-        labels: {
-          color: '#6b7280',
-          font: { size: 12 },
-        },
+        labels: { color: '#6b7280', font: { size: 12 } },
       },
     },
     maintainAspectRatio: false,
   };
 
-  // Graphique : Répartition financière (payé / restant)
+  // Graphique : Répartition financière
   const paidAmount = parseFloat(stats.total_paid || 0);
   const dueAmount = parseFloat(stats.total_due || 0);
   const hasFinancialData = paidAmount > 0 || dueAmount > 0;
@@ -186,9 +209,96 @@ const ClientDashboard = () => {
     plugins: {
       legend: {
         position: 'bottom',
-        labels: {
-          color: '#6b7280',
-          font: { size: 12 },
+        labels: { color: '#6b7280', font: { size: 12 } },
+      },
+    },
+    maintainAspectRatio: false,
+  };
+
+  // ============================================================
+  // 🆕 DONNÉES STOCK
+  // ============================================================
+  const stockLines = stockData?.results || [];
+  const stockProducts = stockData?.count || 0;
+  const stockQuantity = parseFloat(stockData?.total_quantity || 0);
+  const stockValue = parseFloat(stockData?.total_value || 0);
+
+  // Top 5 produits par quantité
+  const topStockProducts = [...stockLines]
+    .sort((a, b) => parseFloat(b.quantity) - parseFloat(a.quantity))
+    .slice(0, 5);
+
+  // Graphique : Top 5 produits en stock (bar chart)
+  const stockBarData = {
+    labels: topStockProducts.map(p => p.product_name || 'Produit'),
+    datasets: [
+      {
+        label: 'Quantité en stock',
+        data: topStockProducts.map(p => parseFloat(p.quantity) || 0),
+        backgroundColor: '#3b82f6',
+        borderColor: '#2563eb',
+        borderWidth: 1,
+        borderRadius: 6,
+      },
+    ],
+  };
+
+  const stockBarOptions = {
+    indexAxis: 'y',
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => `${ctx.parsed.x} unités`,
+        },
+      },
+    },
+    scales: {
+      x: {
+        beginAtZero: true,
+        ticks: { color: '#6b7280' },
+        grid: { color: '#f3f4f6' },
+      },
+      y: {
+        ticks: { color: '#6b7280', font: { size: 11 } },
+        grid: { display: false },
+      },
+    },
+    maintainAspectRatio: false,
+  };
+
+  // Graphique camembert : Top 5 produits (répartition par valeur)
+  const topByValue = [...stockLines]
+    .sort((a, b) => parseFloat(b.total_value) - parseFloat(a.total_value))
+    .slice(0, 5);
+
+  const stockPieData = {
+    labels: topByValue.map(p => p.product_name || 'Produit'),
+    datasets: [
+      {
+        label: 'Valeur',
+        data: topByValue.map(p => parseFloat(p.total_value) || 0),
+        backgroundColor: [
+          '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444',
+        ],
+        borderColor: '#ffffff',
+        borderWidth: 2,
+      },
+    ],
+  };
+
+  const stockPieOptions = {
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { color: '#6b7280', font: { size: 11 }, padding: 8 },
+      },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => {
+            const val = ctx.parsed;
+            return `${ctx.label}: ${new Intl.NumberFormat('fr-FR').format(val)} FCFA`;
+          },
         },
       },
     },
@@ -213,26 +323,26 @@ const ClientDashboard = () => {
             {client_info?.phone && <span>• 📞 {client_info.phone}</span>}
           </p>
         </div>
-        <button onClick={fetchSummary} className="btn btn-primary gap-2">
+        <button onClick={fetchAll} className="btn btn-primary gap-2">
           <RefreshCw className="w-4 h-4" />
           Actualiser
         </button>
       </div>
 
       {/* ============ CARTES STATISTIQUES ============ */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
 
         {/* Mes Achats */}
         <Link to="/client/orders" className="card bg-base-100 shadow-md hover:shadow-lg transition-shadow">
-          <div className="card-body p-5">
+          <div className="card-body p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-base-content/60 text-sm font-medium">Mes Achats</p>
+                <p className="text-base-content/60 text-xs font-medium">Mes Achats</p>
                 <p className="text-2xl font-bold">{formatNumber(stats.total_orders)}</p>
-                <p className="text-xs text-base-content/50 mt-1">commande(s) totale(s)</p>
+                <p className="text-xs text-base-content/50 mt-1">commande(s)</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center">
-                <ShoppingBag className="w-6 h-6 text-blue-500" />
+              <div className="w-11 h-11 rounded-full bg-blue-500/10 flex items-center justify-center">
+                <ShoppingBag className="w-5 h-5 text-blue-500" />
               </div>
             </div>
           </div>
@@ -240,15 +350,15 @@ const ClientDashboard = () => {
 
         {/* Total dépensé */}
         <Link to="/client/orders" className="card bg-base-100 shadow-md hover:shadow-lg transition-shadow">
-          <div className="card-body p-5">
+          <div className="card-body p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-base-content/60 text-sm font-medium">Total dépensé</p>
-                <p className="text-2xl font-bold text-success">{formatCurrency(stats.total_spent)}</p>
+                <p className="text-base-content/60 text-xs font-medium">Total dépensé</p>
+                <p className="text-lg font-bold text-success">{formatCurrency(stats.total_spent)}</p>
                 <p className="text-xs text-base-content/50 mt-1">{formatNumber(stats.total_invoices)} facture(s)</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-success" />
+              <div className="w-11 h-11 rounded-full bg-success/10 flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-success" />
               </div>
             </div>
           </div>
@@ -256,15 +366,15 @@ const ClientDashboard = () => {
 
         {/* Reste à payer */}
         <Link to="/client/invoices" className="card bg-base-100 shadow-md hover:shadow-lg transition-shadow">
-          <div className="card-body p-5">
+          <div className="card-body p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-base-content/60 text-sm font-medium">Reste à payer</p>
-                <p className="text-2xl font-bold text-error">{formatCurrency(stats.total_due)}</p>
+                <p className="text-base-content/60 text-xs font-medium">Reste à payer</p>
+                <p className="text-lg font-bold text-error">{formatCurrency(stats.total_due)}</p>
                 <p className="text-xs text-base-content/50 mt-1">montant dû</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center">
-                <TrendingDown className="w-6 h-6 text-error" />
+              <div className="w-11 h-11 rounded-full bg-error/10 flex items-center justify-center">
+                <TrendingDown className="w-5 h-5 text-error" />
               </div>
             </div>
           </div>
@@ -272,25 +382,201 @@ const ClientDashboard = () => {
 
         {/* Porte-monnaie */}
         <Link to="/client/wallet" className="card bg-base-100 shadow-md hover:shadow-lg transition-shadow">
-          <div className="card-body p-5">
+          <div className="card-body p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-base-content/60 text-sm font-medium">Porte-monnaie</p>
-                <p className="text-2xl font-bold text-primary">{formatCurrency(stats.wallet_balance)}</p>
-                <div className="flex gap-3 text-xs mt-1">
-                  <span className="text-success">Dépôts: {formatCurrency(wallet?.total_deposits)}</span>
-                  <span className="text-warning">Utilisé: {formatCurrency(wallet?.total_used)}</span>
-                </div>
+                <p className="text-base-content/60 text-xs font-medium">Porte-monnaie</p>
+                <p className="text-lg font-bold text-primary">{formatCurrency(stats.wallet_balance)}</p>
+                <p className="text-xs text-base-content/50 mt-1">solde disponible</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <Wallet className="w-6 h-6 text-primary" />
+              <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center">
+                <Wallet className="w-5 h-5 text-primary" />
+              </div>
+            </div>
+          </div>
+        </Link>
+
+        {/* 🆕 Mon Stock */}
+        <Link to="/client/stock" className="card bg-base-100 shadow-md hover:shadow-lg transition-shadow">
+          <div className="card-body p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-base-content/60 text-xs font-medium">Mon Stock</p>
+                <p className="text-lg font-bold text-purple-600">
+                  {formatNumber(stockQuantity)} unités
+                </p>
+                <p className="text-xs text-base-content/50 mt-1">
+                  {formatNumber(stockProducts)} produit(s) • {formatCurrency(stockValue)}
+                </p>
+              </div>
+              <div className="w-11 h-11 rounded-full bg-purple-500/10 flex items-center justify-center">
+                <PackageSearch className="w-5 h-5 text-purple-600" />
               </div>
             </div>
           </div>
         </Link>
       </div>
 
-      {/* ============ GRAPHIQUES CIRCULAIRES ============ */}
+      {/* ============================================================ */}
+      {/* 🆕 SECTION STOCK CLIENT                                        */}
+      {/* ============================================================ */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+
+        {/* Résumé Stock */}
+        <div className="card bg-gradient-to-br from-purple-50 to-purple-100 shadow-md border border-purple-200">
+          <div className="card-body p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-purple-800 flex items-center gap-2">
+                <Boxes className="w-5 h-5" />
+                Résumé du stock
+              </h3>
+              <Link
+                to="/client/stock"
+                className="text-xs font-semibold text-purple-700 hover:text-purple-900 flex items-center gap-1"
+              >
+                Voir
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-white/60 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-purple-600" />
+                  <span className="text-sm font-medium text-purple-800">
+                    Produits différents
+                  </span>
+                </div>
+                <span className="font-bold text-purple-900">{formatNumber(stockProducts)}</span>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-white/60 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-purple-600" />
+                  <span className="text-sm font-medium text-purple-800">
+                    Quantité totale
+                  </span>
+                </div>
+                <span className="font-bold text-purple-900">
+                  {formatNumber(stockQuantity)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-white/60 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-purple-600" />
+                  <span className="text-sm font-medium text-purple-800">
+                    Valeur totale
+                  </span>
+                </div>
+                <span className="font-bold text-purple-900">
+                  {formatCurrency(stockValue)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Graphique : Top 5 produits par quantité */}
+        <div className="card bg-base-100 shadow-md md:col-span-2">
+          <div className="card-body p-5">
+            <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-blue-500" />
+              Top 5 produits en stock (quantités)
+            </h3>
+            <div className="h-56">
+              {topStockProducts.length > 0 ? (
+                <Bar data={stockBarData} options={stockBarOptions} />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <PackageSearch className="w-12 h-12 text-base-content/20 mx-auto mb-2" />
+                    <p className="text-base-content/40 text-sm">
+                      Aucun produit en stock
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Graphique : Répartition par valeur */}
+      {topByValue.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div className="card bg-base-100 shadow-md">
+            <div className="card-body p-5">
+              <h3 className="text-lg font-semibold mb-2">
+                Valeur du stock par produit
+              </h3>
+              <div className="h-64">
+                <Pie data={stockPieData} options={stockPieOptions} />
+              </div>
+            </div>
+          </div>
+
+          {/* Liste des produits */}
+          <div className="card bg-base-100 shadow-md">
+            <div className="card-body p-5">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Package className="w-5 h-5 text-purple-500" />
+                  Détail du stock
+                </h3>
+                <Link
+                  to="/client/stock"
+                  className="text-xs font-semibold text-purple-600 hover:text-purple-800 flex items-center gap-1"
+                >
+                  Tout voir
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {stockLines.slice(0, 6).map((ligne, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-2 rounded-lg bg-base-200/50"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-8 h-8 rounded bg-purple-500/10 flex items-center justify-center shrink-0">
+                        <Package className="w-4 h-4 text-purple-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {ligne.product_name}
+                        </p>
+                        <p className="text-xs text-base-content/50 truncate">
+                          {ligne.product_code}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 ml-2">
+                      <p className="text-sm font-bold text-purple-700">
+                        {formatNumber(ligne.quantity)}
+                      </p>
+                      <p className="text-xs text-base-content/50">
+                        {formatCurrency(ligne.total_value)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {stockLines.length > 6 && (
+                <p className="text-xs text-center text-base-content/50 mt-2">
+                  +{stockLines.length - 6} autre(s) produit(s)
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* GRAPHIQUES COMMANDES + FINANCES                                */}
+      {/* ============================================================ */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
 
         <div className="card bg-base-100 shadow-md">
@@ -454,7 +740,7 @@ const ClientDashboard = () => {
             Actions rapides
           </h2>
           <div className="divider my-2"></div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <Link
               to="/client/orders"
               className="flex flex-col items-center justify-center p-4 rounded-xl bg-blue-50 border border-blue-200 hover:shadow-md transition-all group"
@@ -481,7 +767,15 @@ const ClientDashboard = () => {
               className="flex flex-col items-center justify-center p-4 rounded-xl bg-orange-50 border border-orange-200 hover:shadow-md transition-all group"
             >
               <Wallet className="w-6 h-6 text-orange-600 mb-2 group-hover:scale-110 transition-transform" />
-              <span className="text-xs font-semibold text-orange-600 text-center">Mon Porte-monnaie</span>
+              <span className="text-xs font-semibold text-orange-600 text-center">Porte-monnaie</span>
+            </Link>
+            {/* 🆕 Mon Stock */}
+            <Link
+              to="/client/stock"
+              className="flex flex-col items-center justify-center p-4 rounded-xl bg-fuchsia-50 border border-fuchsia-200 hover:shadow-md transition-all group"
+            >
+              <PackageSearch className="w-6 h-6 text-fuchsia-600 mb-2 group-hover:scale-110 transition-transform" />
+              <span className="text-xs font-semibold text-fuchsia-600 text-center">Mon Stock</span>
             </Link>
           </div>
         </div>

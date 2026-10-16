@@ -153,6 +153,34 @@ import CompteListe from './components/finances/CompteListe';
 import CompteDetail from './components/finances/CompteDetail';
 import CompteForm from './components/finances/CompteForm'; // ✅ AJOUT (import manquant corrigé)
 
+
+import Utilisateurs from './components/users/Utilisateurs';
+import UtilisateurForm from './components/users/UtilisateurForm';
+import UtilisateurDetails from './components/users/UtilisateurDetail';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import EcrituresList from './components/finances/EcrituresList';
 import EcritureForm from './components/finances/EcritureForm';
 import TresorerieListe from './components/finances/TresorerieListe';
@@ -175,6 +203,15 @@ import RapportFinancierDetail from './components/finances/RapportFinancierDetail
 import RapportPdf from './components/finances/RapportPdf';
 import DashboardFinancier from './components/finances/DashboardFinancier';
 import ComptesList from './components/finances/ComptesList';
+import ClientStocksList from './components/ventesclients/ClientStocksList';
+import ClientStockDepositForm from './components/ventesclients/ClientStockDepositForm';
+import ClientStockWithdrawForm from './components/ventesclients/ClientStockWithdrawForm';
+import ClientStockDetail from './components/ventesclients/ClientStockDetail';
+import ClientStockMovements from './components/ventesclients/ClientStockMovements';
+import MyStock from './components/ventesclients/MyStock';
+import MyStockMovements from './components/ventesclients/MyStockMovements';
+
+
 
 function App() {
   const location = useLocation();
@@ -241,6 +278,24 @@ function App() {
                 {/* ==================== PARAMÉTRAGE ==================== */}
                 <Route path="/company-config" element={<EtablissementSettings />} />
                 <Route path="/clients-approval" element={<ClientsApproval />} />
+
+
+
+                <Route path="/utilisateurs" element={<Utilisateurs />} />
+                <Route path="/utilisateurs/ajouter" element={<UtilisateurForm />} />
+                <Route path="/utilisateurs/:id" element={<UtilisateurDetails />} />
+                <Route path="/utilisateurs/:id/modifier" element={<UtilisateurForm />} />
+
+                {/* ============ ADMIN ============ */}
+<Route path="/client-stocks" element={<ClientStocksList />} />
+<Route path="/client-stocks/depot" element={<ClientStockDepositForm />} />
+<Route path="/client-stocks/retrait" element={<ClientStockWithdrawForm />} />
+<Route path="/client-stocks/mouvements" element={<ClientStockMovements />} />
+<Route path="/client-stocks/:clientId/detail" element={<ClientStockDetail />} />
+
+{/* ============ CLIENT ============ */}
+<Route path="/client/stock" element={<MyStock />} />
+<Route path="/client/stock/movements" element={<MyStockMovements />} />
 
                 {/* ==================== FINANCES ==================== */}
                 <Route path="/tresorerie" element={<TresorerieListe />} />

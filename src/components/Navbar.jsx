@@ -15,7 +15,8 @@ import {
   AlertCircle as AlertCircleIcon, Archive, PackageOpen, Truck as TruckIcon, Map,
   UserCheck, Route, PackagePlus, PlusCircle, BadgeDollarSign, Barcode, Store, UserPlus,
   FilePlus, CreditCard as CreditCardPlus, Plus, Grid3x3, TableProperties,
-  Sparkles, Zap, UserRoundCheck, UserRoundX, ShoppingBasket, FileBadge
+  Sparkles, Zap, UserRoundCheck, UserRoundX, ShoppingBasket, FileBadge,
+  PackageMinus, PackageSearch, Warehouse as WarehouseIcon, PackageCheck as PackageCheckIcon
 } from 'lucide-react';
 
 import axiosInstance from './AxiosInstance';
@@ -44,6 +45,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [openSections, setOpenSections] = useState({
     'TABLEAU DE BORD': true, 'VENTES': true, 'PORTE-MONNAIE CLIENTS': false,
+    'STOCK CLIENTS': true,                                     // 🆕
     'PRODUITS & STOCKS': true, 'ACHATS & FOURNISSEURS': false, 'FINANCES': true,
     'TRÉSORERIE': false, 'LIVRAISONS': false, 'PARAMÈTRES': false,
     'MON ESPACE CLIENT': true, 'MON ESPACE': false
@@ -74,8 +76,9 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
   const [ecrituresBrouillon, setEcrituresBrouillon] = useState(0);
   const [tresorerieAlerte, setTresorerieAlerte] = useState(0);
 
-  // ✅ NOUVEAU : Compteurs pour les CLIENTS
+  // Compteurs clients
   const [clientsEnAttente, setClientsEnAttente] = useState(0);
+  const [clientsAvecStock, setClientsAvecStock] = useState(0);   // 🆕
 
   // ============================================================
   // RÉCUPÉRATION UTILISATEUR
@@ -90,7 +93,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
   const firstName = user?.first_name || '';
   const lastName = user?.last_name || '';
   const userName = firstName || lastName || user?.username || userEmail?.split('@')[0] || 'Utilisateur';
-  const isApproved = user?.is_approved !== false; // Par défaut true sauf si explicitement false
+  const isApproved = user?.is_approved !== false;
 
   // Horloge
   useEffect(() => {
@@ -161,13 +164,17 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
       const token = localStorage.getItem('Token');
       if (!token) return;
 
-      // Compteurs pour ADMIN / GESTIONNAIRE
       if (isAdmin || isGestionnaire) {
         try {
-          // ✅ Clients en attente d'approbation
+          // Clients en attente d'approbation
           const pendingRes = await axiosInstance.get('/users/pending-clients/')
             .catch(() => ({ data: { count: 0 } }));
           setClientsEnAttente(pendingRes.data?.count || 0);
+
+          // 🆕 Clients avec stock
+          const stockRes = await axiosInstance.get('/client-stock/list/')
+            .catch(() => ({ data: { count: 0 } }));
+          setClientsAvecStock(stockRes.data?.count || 0);
         } catch (e) {
           console.error('Erreur compteurs admin:', e);
         }
@@ -189,7 +196,6 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
     navigate('/');
   };
 
-  // Établissement
   const nomEtablissement = !loadingEtab && etablissement?.nom ? etablissement.nom : 'ZonACha';
   const sigleEtablissement = !loadingEtab && etablissement?.sigle ? etablissement.sigle : 'Zone Achat ERP';
 
@@ -278,6 +284,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
           path: '/client/wallet',
           permission: true
         },
+        // 🆕 SECTION STOCK CLIENT
         {
           id: 'client-stock',
           text: 'Mon Stock Produits',
@@ -285,6 +292,14 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
           path: '/client/stock',
           permission: true
         },
+        {
+          id: 'client-stock-movements',
+          text: 'Historique Mouvements',
+          icon: History,
+          path: '/client/stock/movements',
+          permission: true
+        },
+        { id: 'separator-client-3', separator: true, permission: true },
         {
           id: 'client-profile',
           text: 'Mon Profil',
@@ -301,8 +316,6 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
         }
       ]
     });
-
-    // Pour les clients, on ne pousse pas les autres sections
   } else {
     // ============================================================
     // 🧑‍💼 STAFF (ADMIN, GESTIONNAIRE, VENDEUR, ETC.)
@@ -344,6 +357,41 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
           { id: 'wallet-deposit', text: 'Dépôt Client', icon: Plus, path: '/wallets/depot', permission: isAdmin || isGestionnaire },
           { id: 'wallet-transactions', text: 'Historique des Transactions', icon: History, path: '/wallets/transactions', permission: isAdmin || isGestionnaire },
           { id: 'wallet-pay', text: 'Paiement avec Porte-monnaie', icon: CreditCard, path: '/wallets/paiement', permission: isAdmin || isGestionnaire }
+        ]
+      },
+      // 🆕 SECTION STOCK CLIENTS
+      {
+        name: 'STOCK CLIENTS', icon: PackageSearch,
+        items: [
+          { 
+            id: 'client-stocks', 
+            text: 'Stocks Clients', 
+            icon: PackageSearch, 
+            path: '/client-stocks', 
+            permission: isAdmin || isGestionnaire,
+            badge: clientsAvecStock > 0 ? clientsAvecStock : 0
+          },
+          { 
+            id: 'client-stock-deposit', 
+            text: 'Dépôt Marchandises', 
+            icon: PackagePlus, 
+            path: '/client-stocks/depot', 
+            permission: isAdmin || isGestionnaire 
+          },
+          { 
+            id: 'client-stock-withdraw', 
+            text: 'Retrait Marchandises', 
+            icon: PackageMinus, 
+            path: '/client-stocks/retrait', 
+            permission: isAdmin || isGestionnaire 
+          },
+          { 
+            id: 'client-stock-movements-admin', 
+            text: 'Mouvements Stock Client', 
+            icon: History, 
+            path: '/client-stocks/mouvements', 
+            permission: isAdmin || isGestionnaire 
+          }
         ]
       },
       {
@@ -422,7 +470,6 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
         }
       );
 
-      // ✅ SECTION PARAMÈTRES avec Approbation Clients
       const parametresItems = [
         { id: 'company-config', text: 'Informations Entreprise', icon: Building2, path: '/company-config', permission: isAdmin },
         { id: 'notifications', text: 'Notifications', icon: Bell, path: '/notifications', permission: isAdmin || isGestionnaire, badge: notificationsCount > 0 ? notificationsCount : 0 },
@@ -434,7 +481,6 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
         { id: 'roles', text: 'Rôles & Permissions', icon: Shield, path: '/roles', permission: isAdmin }
       ];
 
-      // ✅ Ajout de l'item "Approbation Clients" pour admin & gestionnaire
       parametresItems.splice(2, 0, {
         id: 'clients-approval',
         text: 'Approbation Clients',
@@ -451,7 +497,6 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
       });
     }
 
-    // MON ESPACE (uniquement pour le staff)
     menuSections.push({
       name: 'MON ESPACE',
       icon: UserCircle,
@@ -667,7 +712,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                 <span className="text-orange-700 text-xs font-semibold">{roleConfig.label}</span>
               </div>
 
-              {/* ✅ Badge clients en attente (admin/gestionnaire) */}
+              {/* Badge clients en attente */}
               {(isAdmin || isGestionnaire) && clientsEnAttente > 0 && (
                 <Link
                   to="/clients-approval"
