@@ -16,7 +16,8 @@ import {
   UserCheck, Route, PackagePlus, PlusCircle, BadgeDollarSign, Barcode, Store, UserPlus,
   FilePlus, CreditCard as CreditCardPlus, Plus, Grid3x3, TableProperties,
   Sparkles, Zap, UserRoundCheck, UserRoundX, ShoppingBasket, FileBadge,
-  PackageMinus, PackageSearch, Warehouse as WarehouseIcon, PackageCheck as PackageCheckIcon
+  PackageMinus, PackageSearch, Warehouse as WarehouseIcon, PackageCheck as PackageCheckIcon,
+  ThumbsUp, FileCheck2, AlertCircle as AlertCircleOutline
 } from 'lucide-react';
 
 import axiosInstance from './AxiosInstance';
@@ -79,8 +80,13 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
   // Compteurs clients
   const [clientsEnAttente, setClientsEnAttente] = useState(0);
   const [clientsAvecStock, setClientsAvecStock] = useState(0);
-  const [deliveriesPending, setDeliveriesPending] = useState(0);           // 🆕
-  const [deliveriesInTransit, setDeliveriesInTransit] = useState(0);       // 🆕
+
+  // 🆕 Compteurs livraisons
+  const [deliveriesPending, setDeliveriesPending] = useState(0);
+  const [deliveriesPendingFromClients, setDeliveriesPendingFromClients] = useState(0);
+  const [deliveriesInTransit, setDeliveriesInTransit] = useState(0);
+  const [myDeliveriesPending, setMyDeliveriesPending] = useState(0);          // Client
+  const [myDeliveriesInTransit, setMyDeliveriesInTransit] = useState(0);      // Client
 
   // ============================================================
   // RÉCUPÉRATION UTILISATEUR
@@ -166,6 +172,7 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
       const token = localStorage.getItem('Token');
       if (!token) return;
 
+      // ===== ADMIN / GESTIONNAIRE =====
       if (isAdmin || isGestionnaire) {
         try {
           // Clients en attente d'approbation
@@ -178,19 +185,33 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
             .catch(() => ({ data: { count: 0 } }));
           setClientsAvecStock(stockRes.data?.count || 0);
 
-          // 🆕 Livraisons en attente
+          // Livraisons
           const deliveriesRes = await axiosInstance.get('/client-delivery/list/')
             .catch(() => ({ data: { stats: {} } }));
           const stats = deliveriesRes.data?.stats || {};
           setDeliveriesPending(stats.pending || 0);
           setDeliveriesInTransit(stats.in_transit || 0);
+          setDeliveriesPendingFromClients(stats.pending_from_clients || 0);
         } catch (e) {
           console.error('Erreur compteurs admin:', e);
         }
       }
+
+      // ===== CLIENT =====
+      if (isClient && isApproved) {
+        try {
+          const res = await axiosInstance.get('/client-space/my-deliveries/')
+            .catch(() => ({ data: { stats: {} } }));
+          const stats = res.data?.stats || {};
+          setMyDeliveriesPending(stats.pending || 0);
+          setMyDeliveriesInTransit(stats.in_transit || 0);
+        } catch (e) {
+          console.error('Erreur compteurs client:', e);
+        }
+      }
     };
     loadData();
-  }, [role, isAdmin, isGestionnaire]);
+  }, [role, isAdmin, isGestionnaire, isClient, isApproved]);
 
   // ============================================================
   // GESTIONNAIRES
@@ -307,15 +328,26 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
           path: '/client/stock/movements',
           permission: true
         },
-        // 🆕 SUIVI LIVRAISONS
+        { id: 'separator-client-3', separator: true, permission: true },
+        // 🆕 LIVRAISONS CLIENT
         {
           id: 'client-deliveries',
-          text: 'Suivi Livraisons',
+          text: 'Mes Livraisons',
           icon: Truck,
           path: '/client/deliveries',
+          permission: true,
+          badge: (myDeliveriesPending + myDeliveriesInTransit) > 0
+            ? (myDeliveriesPending + myDeliveriesInTransit)
+            : 0
+        },
+        {
+          id: 'client-delivery-new',
+          text: 'Nouvelle Demande',
+          icon: PlusCircle,
+          path: '/client/deliveries/nouvelle',
           permission: true
         },
-        { id: 'separator-client-3', separator: true, permission: true },
+        { id: 'separator-client-4', separator: true, permission: true },
         {
           id: 'client-profile',
           text: 'Mon Profil',
@@ -420,6 +452,17 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
             permission: isAdmin || isGestionnaire,
             badge: (deliveriesPending + deliveriesInTransit) > 0
               ? (deliveriesPending + deliveriesInTransit)
+              : 0
+          },
+          // 🆕 DEMANDES CLIENTS À VALIDER
+          {
+            id: 'client-deliveries-pending',
+            text: 'Demandes à valider',
+            icon: ThumbsUp,
+            path: '/client-deliveries?from_client=true&status=pending',
+            permission: isAdmin || isGestionnaire,
+            badge: deliveriesPendingFromClients > 0
+              ? deliveriesPendingFromClients
               : 0
           },
           {
@@ -581,6 +624,8 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
     if (item.separator) return <div key={item.id} className="border-t border-orange-200/60 my-2 mx-1"></div>;
     const ItemIcon = item.icon;
     const isNewItem = item.id?.startsWith('nouveau-') || item.id?.startsWith('nouvelle-');
+    const isAlertItem = item.id === 'client-deliveries-pending' || item.id === 'clients-approval';
+
     return (
       <Link
         key={item.id}
@@ -597,7 +642,13 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
         <span className="flex-1">{item.text}</span>
         {isNewItem && !isActive && <span className="badge badge-warning badge-xs">Nouveau</span>}
         {item.badge > 0 && (
-          <span className={`badge badge-xs ${isActive ? 'badge-outline' : 'badge-error'} ${item.id === 'clients-approval' ? 'animate-pulse' : ''}`}>
+          <span className={`badge badge-xs ${
+            isActive
+              ? 'badge-outline'
+              : isAlertItem
+                ? 'badge-warning animate-pulse'
+                : 'badge-error'
+          }`}>
             {item.badge > 99 ? '99+' : item.badge}
           </span>
         )}
@@ -763,16 +814,46 @@ const Navbar = ({ content, mode, toggleColorMode }) => {
                 </Link>
               )}
 
-              {/* 🆕 Badge livraisons en attente */}
-              {(isAdmin || isGestionnaire) && (deliveriesPending > 0) && (
+              {/* 🆕 Badge demandes client à valider */}
+              {(isAdmin || isGestionnaire) && deliveriesPendingFromClients > 0 && (
                 <Link
-                  to="/client-deliveries"
+                  to="/client-deliveries?from_client=true&status=pending"
+                  className="relative p-2 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors"
+                  title="Demandes de livraison client à valider"
+                >
+                  <ThumbsUp className="w-5 h-5" />
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center animate-pulse">
+                    {deliveriesPendingFromClients > 9 ? '9+' : deliveriesPendingFromClients}
+                  </span>
+                </Link>
+              )}
+
+              {/* 🆕 Badge livraisons en transit */}
+              {(isAdmin || isGestionnaire) && deliveriesInTransit > 0 && (
+                <Link
+                  to="/client-deliveries?status=in_transit"
                   className="relative p-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
-                  title="Livraisons en attente"
+                  title="Livraisons en transit"
                 >
                   <Truck className="w-5 h-5" />
                   <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                    {deliveriesPending > 9 ? '9+' : deliveriesPending}
+                    {deliveriesInTransit > 9 ? '9+' : deliveriesInTransit}
+                  </span>
+                </Link>
+              )}
+
+              {/* 🆕 Badge livraisons client */}
+              {isClient && isApproved && (myDeliveriesPending + myDeliveriesInTransit) > 0 && (
+                <Link
+                  to="/client/deliveries"
+                  className="relative p-2 rounded-lg text-fuchsia-600 hover:bg-fuchsia-50 transition-colors"
+                  title="Mes livraisons en cours"
+                >
+                  <Truck className="w-5 h-5" />
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-fuchsia-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                    {(myDeliveriesPending + myDeliveriesInTransit) > 9
+                      ? '9+'
+                      : (myDeliveriesPending + myDeliveriesInTransit)}
                   </span>
                 </Link>
               )}

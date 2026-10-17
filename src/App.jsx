@@ -218,6 +218,7 @@ import ClientStockDetail from './components/ventesclients/ClientStockDetail';
 import ClientStockMovements from './components/ventesclients/ClientStockMovements';
 import MyStock from './components/ventesclients/MyStock';
 import MyStockMovements from './components/ventesclients/MyStockMovements';
+import ClientDeliveryRequest  from './components/ventesclients/ClientDeliveryRequest';
 
 
 
@@ -299,6 +300,8 @@ function App() {
 <Route path="/client-deliveries" element={<ClientDeliveriesList />} />
 <Route path="/client-deliveries/nouveau" element={<ClientDeliveryForm />} />
 <Route path="/client-deliveries/:id" element={<ClientDeliveryDetail />} />
+<Route path="/client/deliveries/nouvelle" element={<ClientDeliveryRequest />} />
+<Route path="/client/deliveries/:id/modifier" element={<ClientDeliveryRequest />} />
 
 {/* ============ CLIENT ============ */}
 <Route path="/client/deliveries" element={<MyDeliveries />} />

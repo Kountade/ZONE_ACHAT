@@ -4,7 +4,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import AxiosInstance from '../AxiosInstance';
 import {
   Truck, Search, RefreshCw, Plus, Eye, Clock, CheckCircle,
-  XCircle, Loader2, X, ChevronRight, Package, User, Phone, MapPin
+  XCircle, Loader2, X, ChevronLeft, ChevronRight, Package,
+  User, Phone, MapPin, AlertTriangle, ThumbsUp, Filter
 } from 'lucide-react';
 
 const ClientDeliveriesList = () => {
@@ -15,6 +16,7 @@ const ClientDeliveriesList = () => {
   const [loading, setLoading] = useState(true);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [originFilter, setOriginFilter] = useState('all');   // 🆕
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -51,6 +53,8 @@ const ClientDeliveriesList = () => {
 
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.append('status', statusFilter);
+      if (originFilter === 'client') params.append('from_client', 'true');
+      if (originFilter === 'admin') params.append('from_client', 'false');
       if (searchTerm) params.append('search', searchTerm);
 
       const res = await AxiosInstance.get(
@@ -63,23 +67,18 @@ const ClientDeliveriesList = () => {
       setIsFirstLoad(false);
     } catch (e) {
       console.error(e);
-      if (e.response?.status === 401) {
-        showNotif('Session expirée', 'error');
-        setTimeout(() => navigate('/login'), 2000);
-      } else {
-        showNotif('Erreur de chargement', 'error');
-      }
+      showNotif('Erreur de chargement', 'error');
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, searchTerm, navigate]);
+  }, [statusFilter, originFilter, searchTerm, navigate]);
 
   useEffect(() => {
     fetchDeliveries();
   }, [fetchDeliveries]);
 
   // ============================================================
-  // PAGINATION LOCALE
+  // PAGINATION
   // ============================================================
   const paginatedDeliveries = deliveries.slice(
     (currentPage - 1) * itemsPerPage,
@@ -93,9 +92,11 @@ const ClientDeliveriesList = () => {
   const getStatusBadge = (status) => {
     const configs = {
       pending: { label: 'En attente', className: 'badge-warning', icon: Clock },
+      confirmed: { label: 'Validée', className: 'badge-info', icon: ThumbsUp },
       in_transit: { label: 'En transit', className: 'badge-info', icon: Truck },
       delivered: { label: 'Livré', className: 'badge-success', icon: CheckCircle },
-      cancelled: { label: 'Annulé', className: 'badge-error', icon: XCircle },
+      cancelled: { label: 'Annulé', className: 'badge-ghost', icon: XCircle },
+      rejected: { label: 'Rejetée', className: 'badge-error', icon: XCircle },
     };
     const config = configs[status] || configs.pending;
     const Icon = config.icon;
@@ -107,27 +108,23 @@ const ClientDeliveriesList = () => {
     );
   };
 
-  // ============================================================
-  // RENDU : CHARGEMENT INITIAL
-  // ============================================================
   if (loading && isFirstLoad) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)] bg-gray-50">
         <div className="text-center space-y-4">
           <div className="w-16 h-16 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mx-auto"></div>
-          <p className="text-base font-medium text-gray-500">Chargement des livraisons...</p>
+          <p className="text-base font-medium text-gray-500">Chargement...</p>
         </div>
       </div>
     );
   }
 
   // ============================================================
-  // RENDU PRINCIPAL
+  // RENDU
   // ============================================================
   return (
     <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 bg-gray-50 min-h-screen">
 
-      {/* Notification */}
       {notification.show && (
         <div className="fixed top-20 right-4 z-50">
           <div className={`alert ${notification.type === 'success' ? 'alert-success' : 'alert-error'} shadow-xl rounded-xl`}>
@@ -135,15 +132,12 @@ const ClientDeliveriesList = () => {
               {notification.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
               <span className="font-medium">{notification.message}</span>
             </div>
-            <button className="btn btn-ghost btn-xs btn-circle" onClick={() => setNotification({ ...notification, show: false })}>
-              <X className="w-3 h-3" />
-            </button>
           </div>
         </div>
       )}
 
       {/* En-tête */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent rounded-2xl p-5">
+      <div className="bg-gradient-to-r from-blue-500/10 via-blue-500/5 to-transparent rounded-2xl p-5">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-500/10 rounded-xl">
@@ -154,7 +148,7 @@ const ClientDeliveriesList = () => {
                 Livraisons Clients
               </h1>
               <p className="text-sm text-gray-500">
-                Retraits de stock client avec suivi de livraison
+                Demandes clients & livraisons administrateur
               </p>
             </div>
           </div>
@@ -178,77 +172,46 @@ const ClientDeliveriesList = () => {
         </div>
       </div>
 
-      {/* Statistiques */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white shadow-md rounded-xl p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 font-medium">En attente</p>
-              <p className="text-2xl font-bold text-warning">{stats.pending || 0}</p>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center">
-              <Clock className="w-5 h-5 text-warning" />
-            </div>
-          </div>
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+        <div className="bg-white shadow-md rounded-xl p-3">
+          <p className="text-xs text-gray-500">En attente</p>
+          <p className="text-xl font-bold text-warning">{stats.pending || 0}</p>
         </div>
-
-        <div className="bg-white shadow-md rounded-xl p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 font-medium">En transit</p>
-              <p className="text-2xl font-bold text-info">{stats.in_transit || 0}</p>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-info/10 flex items-center justify-center">
-              <Truck className="w-5 h-5 text-info" />
-            </div>
-          </div>
+        <div className="bg-white shadow-md rounded-xl p-3">
+          <p className="text-xs text-gray-500">Validées</p>
+          <p className="text-xl font-bold text-info">{stats.confirmed || 0}</p>
         </div>
-
-        <div className="bg-white shadow-md rounded-xl p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 font-medium">Livrées</p>
-              <p className="text-2xl font-bold text-success">{stats.delivered || 0}</p>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-success" />
-            </div>
-          </div>
+        <div className="bg-white shadow-md rounded-xl p-3">
+          <p className="text-xs text-gray-500">En transit</p>
+          <p className="text-xl font-bold text-primary">{stats.in_transit || 0}</p>
         </div>
-
-        <div className="bg-white shadow-md rounded-xl p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 font-medium">Total</p>
-              <p className="text-2xl font-bold text-primary">{stats.total || 0}</p>
-            </div>
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Package className="w-5 h-5 text-primary" />
-            </div>
-          </div>
+        <div className="bg-white shadow-md rounded-xl p-3">
+          <p className="text-xs text-gray-500">Livrées</p>
+          <p className="text-xl font-bold text-success">{stats.delivered || 0}</p>
+        </div>
+        <div className="bg-white shadow-md rounded-xl p-3">
+          <p className="text-xs text-gray-500">Rejetées</p>
+          <p className="text-xl font-bold text-error">{stats.rejected || 0}</p>
+        </div>
+        <div className="bg-white shadow-md rounded-xl p-3 border-2 border-amber-300">
+          <p className="text-xs text-amber-700 font-semibold">⚠ Demandes client</p>
+          <p className="text-xl font-bold text-amber-600">{stats.pending_from_clients || 0}</p>
         </div>
       </div>
 
       {/* Filtres */}
       <div className="bg-white rounded-xl shadow-md p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Rechercher n° livraison, client, destinataire, tracking..."
+              placeholder="Rechercher..."
               className="input input-bordered w-full pl-9"
               value={searchTerm}
               onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 btn btn-ghost btn-xs btn-circle"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
           </div>
           <select
             className="select select-bordered w-full"
@@ -257,9 +220,20 @@ const ClientDeliveriesList = () => {
           >
             <option value="all">Tous les statuts</option>
             <option value="pending">En attente</option>
+            <option value="confirmed">Validées</option>
             <option value="in_transit">En transit</option>
             <option value="delivered">Livrées</option>
             <option value="cancelled">Annulées</option>
+            <option value="rejected">Rejetées</option>
+          </select>
+          <select
+            className="select select-bordered w-full"
+            value={originFilter}
+            onChange={(e) => { setOriginFilter(e.target.value); setCurrentPage(1); }}
+          >
+            <option value="all">Toutes les origines</option>
+            <option value="client">Demandes clients</option>
+            <option value="admin">Créées par admin</option>
           </select>
         </div>
       </div>
@@ -273,7 +247,7 @@ const ClientDeliveriesList = () => {
         ) : deliveries.length === 0 ? (
           <div className="p-12 text-center">
             <Truck className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 font-medium">Aucune livraison trouvée</p>
+            <p className="text-gray-500 font-medium">Aucune livraison</p>
             <Link
               to="/client-deliveries/nouveau"
               className="btn btn-primary btn-sm mt-4 gap-2"
@@ -289,55 +263,42 @@ const ClientDeliveriesList = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="py-3 px-4">N° Livraison</th>
-                    <th className="py-3 px-4">Client source</th>
+                    <th className="py-3 px-4">Client</th>
                     <th className="py-3 px-4">Destinataire</th>
-                    <th className="py-3 px-4 hidden lg:table-cell">Date</th>
-                    <th className="py-3 px-4 text-right">Quantité</th>
-                    <th className="py-3 px-4 text-right">Valeur</th>
+                    <th className="py-3 px-4 text-center">Origine</th>
+                    <th className="py-3 px-4 text-right">Qté</th>
                     <th className="py-3 px-4 text-center">Statut</th>
                     <th className="py-3 px-4 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedDeliveries.map((d) => (
-                    <tr key={d.id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={d.id} className="hover:bg-gray-50">
                       <td className="py-3 px-4">
                         <span className="font-mono font-semibold text-blue-600">
                           {d.delivery_number}
                         </span>
                       </td>
                       <td className="py-3 px-4">
-                        <div>
-                          <p className="font-medium">{d.client_name}</p>
-                          <p className="text-xs text-gray-500">{d.client_code}</p>
-                        </div>
+                        <p className="font-medium">{d.client_name}</p>
+                        <p className="text-xs text-gray-500">{d.client_code}</p>
                       </td>
                       <td className="py-3 px-4">
-                        <div>
-                          <p className="font-medium text-sm flex items-center gap-1">
-                            <User className="w-3 h-3 text-blue-500" />
-                            {d.recipient_name}
-                          </p>
-                          <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                            <Phone className="w-3 h-3" />
-                            {d.recipient_phone}
-                          </p>
-                          {d.recipient_address && (
-                            <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5 truncate max-w-[180px]">
-                              <MapPin className="w-3 h-3" />
-                              {d.recipient_address}
-                            </p>
-                          )}
-                        </div>
+                        <p className="text-sm font-medium">{d.recipient_name}</p>
+                        <p className="text-xs text-gray-500">{d.recipient_phone}</p>
                       </td>
-                      <td className="py-3 px-4 hidden lg:table-cell text-sm text-gray-600">
-                        {formatDate(d.request_date)}
+                      <td className="py-3 px-4 text-center">
+                        {d.created_by_client ? (
+                          <span className="badge badge-warning badge-sm gap-1">
+                            <User className="w-3 h-3" />
+                            Client
+                          </span>
+                        ) : (
+                          <span className="badge badge-ghost badge-sm">Admin</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-right font-medium">
                         {d.total_quantity}
-                      </td>
-                      <td className="py-3 px-4 text-right font-bold text-blue-600">
-                        {formatCurrency(d.total_value)}
                       </td>
                       <td className="py-3 px-4 text-center">
                         {getStatusBadge(d.status)}
@@ -345,8 +306,10 @@ const ClientDeliveriesList = () => {
                       <td className="py-3 px-4 text-center">
                         <button
                           onClick={() => navigate(`/client-deliveries/${d.id}`)}
-                          className="btn btn-ghost btn-sm btn-circle tooltip text-blue-600"
-                          data-tip="Voir détails"
+                          className={`btn btn-ghost btn-sm btn-circle ${
+                            d.status === 'pending' ? 'text-warning animate-pulse' : 'text-blue-600'
+                          }`}
+                          title={d.status === 'pending' ? 'À traiter' : 'Détails'}
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -360,23 +323,18 @@ const ClientDeliveriesList = () => {
             {/* Pagination */}
             <div className="px-6 py-4 border-t flex flex-col sm:flex-row items-center justify-between gap-4 bg-gray-50">
               <div className="text-sm text-gray-500">
-                Affichage de {(currentPage - 1) * itemsPerPage + 1} à{' '}
-                {Math.min(currentPage * itemsPerPage, deliveries.length)} sur{' '}
-                {deliveries.length}
+                {deliveries.length} livraison(s)
               </div>
               <div className="flex items-center gap-3">
                 <select
                   className="select select-bordered select-sm"
                   value={itemsPerPage}
-                  onChange={(e) => {
-                    setItemsPerPage(parseInt(e.target.value));
-                    setCurrentPage(1);
-                  }}
+                  onChange={(e) => { setItemsPerPage(parseInt(e.target.value)); setCurrentPage(1); }}
                 >
-                  <option value="5">5 lignes</option>
-                  <option value="10">10 lignes</option>
-                  <option value="20">20 lignes</option>
-                  <option value="50">50 lignes</option>
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
                 </select>
                 <div className="join">
                   <button
@@ -384,7 +342,7 @@ const ClientDeliveriesList = () => {
                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
                   >
-                    <ChevronRight className="w-4 h-4 rotate-180" />
+                    <ChevronLeft className="w-4 h-4" />
                   </button>
                   <span className="join-item btn btn-sm btn-disabled">
                     Page {currentPage} / {totalPages || 1}

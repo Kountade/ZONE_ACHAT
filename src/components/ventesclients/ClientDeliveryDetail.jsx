@@ -5,8 +5,8 @@ import AxiosInstance from '../AxiosInstance';
 import {
   ArrowLeft, Truck, Package, User, Phone, MapPin, Mail,
   CheckCircle, Clock, XCircle, Play, AlertCircle, Loader2,
-  Hash, Car, UserCheck, Calendar, FileText, MessageSquare,
-  RefreshCw
+  Car, UserCheck, RefreshCw, ThumbsUp, ThumbsDown,
+  AlertTriangle, X
 } from 'lucide-react';
 
 const ClientDeliveryDetail = () => {
@@ -18,22 +18,23 @@ const ClientDeliveryDetail = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
 
-  // Modal Démarrer
+  // Modals
+  const [showValidateModal, setShowValidateModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
   const [showStartModal, setShowStartModal] = useState(false);
-  const [startForm, setStartForm] = useState({
-    carrier: '',
-    tracking_number: '',
-    vehicle_plate: '',
-    driver_name: '',
-    driver_phone: '',
-    delivery_method: '',
-  });
-
-  // Modal Confirmer
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-
-  // Modal Annuler
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // Formulaires modaux
+  const [validateForm, setValidateForm] = useState({
+    carrier: '', tracking_number: '', vehicle_plate: '',
+    driver_name: '', driver_phone: '', delivery_method: '', notes: '',
+  });
+  const [rejectReason, setRejectReason] = useState('');
+  const [startForm, setStartForm] = useState({
+    carrier: '', tracking_number: '', vehicle_plate: '',
+    driver_name: '', driver_phone: '', delivery_method: '',
+  });
   const [cancelReason, setCancelReason] = useState('');
 
   const getToken = () => localStorage.getItem('Token');
@@ -59,12 +60,6 @@ const ClientDeliveryDetail = () => {
     setLoading(true);
     try {
       const token = getToken();
-      if (!token) {
-        showNotif('Session expirée', 'error');
-        setTimeout(() => navigate('/login'), 2000);
-        return;
-      }
-
       const res = await AxiosInstance.get(
         `/client-delivery/${id}/detail/`,
         { headers: { 'Authorization': `Token ${token}` } }
@@ -72,7 +67,16 @@ const ClientDeliveryDetail = () => {
 
       setDelivery(res.data);
 
-      // Pré-remplir le formulaire de démarrage
+      // Pré-remplir
+      setValidateForm({
+        carrier: res.data.carrier || '',
+        tracking_number: res.data.tracking_number || '',
+        vehicle_plate: res.data.vehicle_plate || '',
+        driver_name: res.data.driver_name || '',
+        driver_phone: res.data.driver_phone || '',
+        delivery_method: res.data.delivery_method || '',
+        notes: '',
+      });
       setStartForm({
         carrier: res.data.carrier || '',
         tracking_number: res.data.tracking_number || '',
@@ -83,19 +87,11 @@ const ClientDeliveryDetail = () => {
       });
     } catch (e) {
       console.error(e);
-      if (e.response?.status === 401) {
-        showNotif('Session expirée', 'error');
-        setTimeout(() => navigate('/login'), 2000);
-      } else if (e.response?.status === 404) {
-        showNotif('Livraison non trouvée', 'error');
-        setTimeout(() => navigate('/client-deliveries'), 2000);
-      } else {
-        showNotif('Erreur de chargement', 'error');
-      }
+      showNotif('Erreur de chargement', 'error');
     } finally {
       setLoading(false);
     }
-  }, [id, navigate]);
+  }, [id]);
 
   useEffect(() => {
     fetchDelivery();
@@ -104,7 +100,52 @@ const ClientDeliveryDetail = () => {
   // ============================================================
   // ACTIONS
   // ============================================================
-  const handleStartDelivery = async () => {
+  const handleValidate = async () => {
+    setActionLoading(true);
+    try {
+      const token = getToken();
+      await AxiosInstance.post(
+        `/client-delivery/${id}/validate-request/`,
+        validateForm,
+        { headers: { 'Authorization': `Token ${token}` } }
+      );
+      showNotif('Demande validée avec succès', 'success');
+      setShowValidateModal(false);
+      fetchDelivery();
+    } catch (e) {
+      const msg = e.response?.data?.error || 'Erreur lors de la validation';
+      showNotif(Array.isArray(msg) ? msg[0] : msg, 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejectReason.trim()) {
+      showNotif('Veuillez indiquer une raison', 'error');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const token = getToken();
+      await AxiosInstance.post(
+        `/client-delivery/${id}/reject-request/`,
+        { reason: rejectReason },
+        { headers: { 'Authorization': `Token ${token}` } }
+      );
+      showNotif('Demande rejetée', 'success');
+      setShowRejectModal(false);
+      setRejectReason('');
+      fetchDelivery();
+    } catch (e) {
+      const msg = e.response?.data?.error || 'Erreur lors du rejet';
+      showNotif(Array.isArray(msg) ? msg[0] : msg, 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleStart = async () => {
     setActionLoading(true);
     try {
       const token = getToken();
@@ -117,7 +158,6 @@ const ClientDeliveryDetail = () => {
       setShowStartModal(false);
       fetchDelivery();
     } catch (e) {
-      console.error(e);
       const msg = e.response?.data?.error || 'Erreur lors du démarrage';
       showNotif(Array.isArray(msg) ? msg[0] : msg, 'error');
     } finally {
@@ -125,7 +165,7 @@ const ClientDeliveryDetail = () => {
     }
   };
 
-  const handleConfirmDelivery = async () => {
+  const handleConfirm = async () => {
     setActionLoading(true);
     try {
       const token = getToken();
@@ -138,7 +178,6 @@ const ClientDeliveryDetail = () => {
       setShowConfirmModal(false);
       fetchDelivery();
     } catch (e) {
-      console.error(e);
       const msg = e.response?.data?.error || 'Erreur lors de la confirmation';
       showNotif(Array.isArray(msg) ? msg[0] : msg, 'error');
     } finally {
@@ -146,13 +185,13 @@ const ClientDeliveryDetail = () => {
     }
   };
 
-  const handleCancelDelivery = async () => {
+  const handleCancel = async () => {
     setActionLoading(true);
     try {
       const token = getToken();
       await AxiosInstance.post(
         `/client-delivery/${id}/cancel/`,
-        { notes: cancelReason },
+        { reason: cancelReason },
         { headers: { 'Authorization': `Token ${token}` } }
       );
       showNotif('Livraison annulée', 'success');
@@ -160,7 +199,6 @@ const ClientDeliveryDetail = () => {
       setCancelReason('');
       fetchDelivery();
     } catch (e) {
-      console.error(e);
       const msg = e.response?.data?.error || 'Erreur lors de l\'annulation';
       showNotif(Array.isArray(msg) ? msg[0] : msg, 'error');
     } finally {
@@ -174,9 +212,11 @@ const ClientDeliveryDetail = () => {
   const getStatusBadge = (status) => {
     const configs = {
       pending: { label: 'En attente', className: 'badge-warning', icon: Clock },
+      confirmed: { label: 'Validée', className: 'badge-info', icon: ThumbsUp },
       in_transit: { label: 'En transit', className: 'badge-info', icon: Truck },
       delivered: { label: 'Livré', className: 'badge-success', icon: CheckCircle },
-      cancelled: { label: 'Annulé', className: 'badge-error', icon: XCircle },
+      cancelled: { label: 'Annulé', className: 'badge-ghost', icon: XCircle },
+      rejected: { label: 'Rejetée', className: 'badge-error', icon: XCircle },
     };
     const config = configs[status] || configs.pending;
     const Icon = config.icon;
@@ -188,9 +228,6 @@ const ClientDeliveryDetail = () => {
     );
   };
 
-  // ============================================================
-  // CHARGEMENT
-  // ============================================================
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
@@ -245,9 +282,17 @@ const ClientDeliveryDetail = () => {
                   <Truck className="w-7 h-7 text-blue-600" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-800 font-mono">
-                    {delivery.delivery_number}
-                  </h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-2xl font-bold text-gray-800 font-mono">
+                      {delivery.delivery_number}
+                    </h1>
+                    {delivery.created_by_client && (
+                      <span className="badge badge-warning badge-sm gap-1">
+                        <User className="w-3 h-3" />
+                        Client
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-gray-500">
                     Créée le {formatDate(delivery.request_date)}
                   </p>
@@ -266,34 +311,53 @@ const ClientDeliveryDetail = () => {
 
       <div className="px-6 py-6 space-y-6">
 
-        {/* ============ ACTIONS ============ */}
-        {delivery.status !== 'delivered' && delivery.status !== 'cancelled' && (
-          <div className="bg-white rounded-xl shadow-sm border p-5">
-            <h3 className="font-semibold mb-3 text-gray-700 flex items-center gap-2">
-              <Play className="w-5 h-5 text-blue-500" />
-              Actions disponibles
+        {/* ============ ACTIONS SELON STATUT ============ */}
+        {delivery.status === 'pending' && (
+          <div className="bg-white rounded-xl shadow-sm border-2 border-amber-200 p-5">
+            <h3 className="font-semibold mb-3 text-amber-800 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5" />
+              Demande à traiter
             </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Cette demande attend votre validation.
+              {delivery.created_by_client && ' Elle a été créée par le client.'}
+            </p>
             <div className="flex flex-wrap gap-3">
-              {delivery.status === 'pending' && (
-                <button
-                  onClick={() => setShowStartModal(true)}
-                  className="btn bg-blue-600 hover:bg-blue-700 text-white gap-2"
-                >
-                  <Play className="w-4 h-4" />
-                  Démarrer la livraison
-                </button>
-              )}
+              <button
+                onClick={() => setShowValidateModal(true)}
+                className="btn bg-success hover:bg-success/90 text-white gap-2"
+              >
+                <ThumbsUp className="w-4 h-4" />
+                Valider la demande
+              </button>
+              <button
+                onClick={() => setShowRejectModal(true)}
+                className="btn btn-error gap-2"
+              >
+                <ThumbsDown className="w-4 h-4" />
+                Rejeter
+              </button>
+            </div>
+          </div>
+        )}
 
-              {(delivery.status === 'pending' || delivery.status === 'in_transit') && (
-                <button
-                  onClick={() => setShowConfirmModal(true)}
-                  className="btn bg-success hover:bg-success/90 text-white gap-2"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  Confirmer la livraison (déduit le stock)
-                </button>
-              )}
-
+        {delivery.status === 'confirmed' && (
+          <div className="bg-white rounded-xl shadow-sm border-2 border-blue-200 p-5">
+            <h3 className="font-semibold mb-3 text-blue-800 flex items-center gap-2">
+              <Play className="w-5 h-5" />
+              Prête à être expédiée
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              La demande a été validée. Vous pouvez maintenant démarrer la livraison.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => setShowStartModal(true)}
+                className="btn bg-blue-600 hover:bg-blue-700 text-white gap-2"
+              >
+                <Play className="w-4 h-4" />
+                Démarrer la livraison
+              </button>
               <button
                 onClick={() => setShowCancelModal(true)}
                 className="btn btn-outline btn-error gap-2"
@@ -301,6 +365,35 @@ const ClientDeliveryDetail = () => {
                 <XCircle className="w-4 h-4" />
                 Annuler
               </button>
+            </div>
+          </div>
+        )}
+
+        {delivery.status === 'in_transit' && (
+          <div className="bg-white rounded-xl shadow-sm border-2 border-info/30 p-5">
+            <h3 className="font-semibold mb-3 text-info flex items-center gap-2">
+              <Truck className="w-5 h-5" />
+              En cours de livraison
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              La livraison est en cours. Confirmez-la lorsque le destinataire a reçu les produits.
+            </p>
+            <button
+              onClick={() => setShowConfirmModal(true)}
+              className="btn bg-success hover:bg-success/90 text-white gap-2"
+            >
+              <CheckCircle className="w-4 h-4" />
+              Confirmer la livraison (déduit le stock)
+            </button>
+          </div>
+        )}
+
+        {delivery.status === 'rejected' && delivery.rejection_reason && (
+          <div className="alert alert-error">
+            <XCircle className="w-5 h-5" />
+            <div>
+              <p className="font-semibold">Demande rejetée</p>
+              <p className="text-sm">{delivery.rejection_reason}</p>
             </div>
           </div>
         )}
@@ -319,6 +412,15 @@ const ClientDeliveryDetail = () => {
                 <p className="text-xs text-gray-500">{formatDate(delivery.request_date)}</p>
               </div>
             </div>
+            {delivery.confirmed_date && (
+              <div className="flex items-center gap-3">
+                <div className="w-3 h-3 rounded-full bg-success" />
+                <div>
+                  <p className="font-medium text-sm">Validée</p>
+                  <p className="text-xs text-gray-500">{formatDate(delivery.confirmed_date)}</p>
+                </div>
+              </div>
+            )}
             {delivery.shipped_date && (
               <div className="flex items-center gap-3">
                 <div className="w-3 h-3 rounded-full bg-info" />
@@ -340,114 +442,46 @@ const ClientDeliveryDetail = () => {
           </div>
         </div>
 
+        {/* Client source + Destinataire */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          {/* ============ CLIENT SOURCE ============ */}
           <div className="bg-white rounded-xl shadow-sm border p-5">
             <h3 className="font-semibold mb-3 text-gray-700 flex items-center gap-2">
               <User className="w-5 h-5 text-blue-500" />
               Client source
             </h3>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Nom :</span>
-                <span className="font-medium">{delivery.client_name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Code :</span>
-                <span className="font-mono text-xs">{delivery.client_code}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Téléphone :</span>
-                <span className="font-medium">{delivery.client_phone}</span>
-              </div>
+              <p><span className="text-gray-500">Nom : </span><strong>{delivery.client_name}</strong></p>
+              <p><span className="text-gray-500">Code : </span><code>{delivery.client_code}</code></p>
+              <p><span className="text-gray-500">Tél : </span>{delivery.client_phone}</p>
             </div>
           </div>
 
-          {/* ============ DESTINATAIRE ============ */}
-          <div className="bg-white rounded-xl shadow-sm border-2 border-blue-200 p-5">
+          <div className="bg-white rounded-xl shadow-sm border-2 border-fuchsia-200 p-5">
             <h3 className="font-semibold mb-3 text-gray-700 flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-blue-600" />
+              <MapPin className="w-5 h-5 text-fuchsia-600" />
               Destinataire
             </h3>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Nom :</span>
-                <span className="font-medium">{delivery.recipient_name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Téléphone :</span>
-                <span className="font-medium">{delivery.recipient_phone}</span>
-              </div>
-              {delivery.recipient_email && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Email :</span>
-                  <span className="font-medium">{delivery.recipient_email}</span>
-                </div>
-              )}
+              <p><span className="text-gray-500">Nom : </span><strong>{delivery.recipient_name}</strong></p>
+              <p><span className="text-gray-500">Tél : </span>{delivery.recipient_phone}</p>
               {delivery.recipient_address && (
-                <div>
-                  <span className="text-gray-500">Adresse :</span>
-                  <p className="font-medium mt-1">{delivery.recipient_address}</p>
-                </div>
+                <p><span className="text-gray-500">Adresse : </span>{delivery.recipient_address}</p>
               )}
               {delivery.recipient_notes && (
-                <div className="mt-2 p-2 bg-blue-50 rounded text-xs">
+                <p className="mt-2 p-2 bg-fuchsia-50 rounded text-xs">
                   <strong>Note :</strong> {delivery.recipient_notes}
-                </div>
+                </p>
               )}
             </div>
           </div>
         </div>
 
-        {/* ============ TRANSPORT ============ */}
-        {(delivery.carrier || delivery.tracking_number || delivery.vehicle_plate || delivery.driver_name) && (
-          <div className="bg-white rounded-xl shadow-sm border p-5">
-            <h3 className="font-semibold mb-3 text-gray-700 flex items-center gap-2">
-              <Car className="w-5 h-5 text-blue-500" />
-              Transport
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-              {delivery.carrier && (
-                <div>
-                  <span className="text-gray-500">Transporteur :</span>
-                  <p className="font-medium">{delivery.carrier}</p>
-                </div>
-              )}
-              {delivery.tracking_number && (
-                <div>
-                  <span className="text-gray-500">N° de suivi :</span>
-                  <p className="font-mono font-medium">{delivery.tracking_number}</p>
-                </div>
-              )}
-              {delivery.vehicle_plate && (
-                <div>
-                  <span className="text-gray-500">Immatriculation :</span>
-                  <p className="font-mono font-medium">{delivery.vehicle_plate}</p>
-                </div>
-              )}
-              {delivery.driver_name && (
-                <div>
-                  <span className="text-gray-500">Chauffeur :</span>
-                  <p className="font-medium">{delivery.driver_name}</p>
-                </div>
-              )}
-              {delivery.driver_phone && (
-                <div>
-                  <span className="text-gray-500">Téléphone chauffeur :</span>
-                  <p className="font-medium">{delivery.driver_phone}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ============ PRODUITS ============ */}
+        {/* Produits */}
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
           <div className="bg-gray-50 px-5 py-3 border-b">
             <h3 className="font-semibold text-gray-700 flex items-center gap-2">
               <Package className="w-5 h-5 text-blue-500" />
-              Produits livrés ({delivery.lignes?.length || 0})
+              Produits ({delivery.lignes?.length || 0})
             </h3>
           </div>
           <div className="overflow-x-auto">
@@ -456,7 +490,7 @@ const ClientDeliveryDetail = () => {
                 <tr>
                   <th className="py-2 px-4 text-xs">Produit</th>
                   <th className="py-2 px-4 text-xs text-right">Qté</th>
-                  <th className="py-2 px-4 text-xs text-right">Prix unitaire</th>
+                  <th className="py-2 px-4 text-xs text-right">Prix</th>
                   <th className="py-2 px-4 text-xs text-right">Total</th>
                   {delivery.status === 'delivered' && (
                     <th className="py-2 px-4 text-xs text-center">Avant/Après</th>
@@ -498,24 +532,18 @@ const ClientDeliveryDetail = () => {
           </div>
         </div>
 
-        {/* ============ NOTES ============ */}
+        {/* Notes */}
         {(delivery.notes || delivery.client_notes) && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {delivery.notes && (
               <div className="bg-white rounded-xl shadow-sm border p-5">
-                <h3 className="font-semibold mb-2 text-gray-700 text-sm flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-gray-500" />
-                  Notes internes
-                </h3>
+                <h3 className="font-semibold mb-2 text-gray-700 text-sm">Notes internes</h3>
                 <p className="text-sm text-gray-600 whitespace-pre-wrap">{delivery.notes}</p>
               </div>
             )}
             {delivery.client_notes && (
               <div className="bg-white rounded-xl shadow-sm border p-5">
-                <h3 className="font-semibold mb-2 text-gray-700 text-sm flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-blue-500" />
-                  Message au client
-                </h3>
+                <h3 className="font-semibold mb-2 text-gray-700 text-sm">Message du client</h3>
                 <p className="text-sm text-gray-600 whitespace-pre-wrap">{delivery.client_notes}</p>
               </div>
             )}
@@ -525,23 +553,126 @@ const ClientDeliveryDetail = () => {
       </div>
 
       {/* ============================================================ */}
+      {/* MODAL : VALIDER */}
+      {/* ============================================================ */}
+      {showValidateModal && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-lg">
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-success">
+              <ThumbsUp className="w-5 h-5" />
+              Valider la demande
+            </h3>
+
+            <p className="text-sm text-gray-600 mb-4">
+              Vous pouvez ajouter les informations de transport (optionnel).
+              Le client pourra voir ces informations dans son suivi.
+            </p>
+
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="Mode de livraison (ex: Camion)"
+                value={validateForm.delivery_method}
+                onChange={(e) => setValidateForm({ ...validateForm, delivery_method: e.target.value })}
+                className="input input-bordered w-full"
+              />
+              <input
+                type="text"
+                placeholder="Transporteur"
+                value={validateForm.carrier}
+                onChange={(e) => setValidateForm({ ...validateForm, carrier: e.target.value })}
+                className="input input-bordered w-full"
+              />
+              <input
+                type="text"
+                placeholder="N° de suivi"
+                value={validateForm.tracking_number}
+                onChange={(e) => setValidateForm({ ...validateForm, tracking_number: e.target.value })}
+                className="input input-bordered w-full"
+              />
+              <textarea
+                placeholder="Notes de validation (optionnel)"
+                value={validateForm.notes}
+                onChange={(e) => setValidateForm({ ...validateForm, notes: e.target.value })}
+                className="textarea textarea-bordered w-full"
+                rows="2"
+              />
+            </div>
+
+            <div className="modal-action">
+              <button
+                onClick={() => setShowValidateModal(false)}
+                className="btn btn-ghost"
+                disabled={actionLoading}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleValidate}
+                className="btn btn-success gap-2"
+                disabled={actionLoading}
+              >
+                {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ThumbsUp className="w-4 h-4" />}
+                Valider
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* MODAL : REJETER */}
+      {/* ============================================================ */}
+      {showRejectModal && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-error">
+              <ThumbsDown className="w-5 h-5" />
+              Rejeter la demande
+            </h3>
+            <p className="text-sm text-gray-600 mb-3">
+              Le client verra la raison du rejet. Soyez explicite.
+            </p>
+            <textarea
+              placeholder="Raison du rejet (obligatoire)"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              className="textarea textarea-bordered w-full"
+              rows="3"
+              required
+            />
+            <div className="modal-action">
+              <button
+                onClick={() => setShowRejectModal(false)}
+                className="btn btn-ghost"
+                disabled={actionLoading}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleReject}
+                className="btn btn-error gap-2"
+                disabled={actionLoading || !rejectReason.trim()}
+              >
+                {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                Rejeter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
       {/* MODAL : DÉMARRER */}
       {/* ============================================================ */}
       {showStartModal && (
         <div className="modal modal-open">
           <div className="modal-box max-w-lg">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-              <Play className="w-5 h-5 text-blue-500" />
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-blue-600">
+              <Play className="w-5 h-5" />
               Démarrer la livraison
             </h3>
             <div className="space-y-3">
-              <input
-                type="text"
-                placeholder="Mode de livraison (ex: Camion)"
-                value={startForm.delivery_method}
-                onChange={(e) => setStartForm({ ...startForm, delivery_method: e.target.value })}
-                className="input input-bordered w-full"
-              />
               <input
                 type="text"
                 placeholder="Transporteur"
@@ -558,7 +689,7 @@ const ClientDeliveryDetail = () => {
               />
               <input
                 type="text"
-                placeholder="Immatriculation véhicule"
+                placeholder="Immatriculation"
                 value={startForm.vehicle_plate}
                 onChange={(e) => setStartForm({ ...startForm, vehicle_plate: e.target.value })}
                 className="input input-bordered w-full"
@@ -572,7 +703,7 @@ const ClientDeliveryDetail = () => {
               />
               <input
                 type="tel"
-                placeholder="Téléphone du chauffeur"
+                placeholder="Tél. chauffeur"
                 value={startForm.driver_phone}
                 onChange={(e) => setStartForm({ ...startForm, driver_phone: e.target.value })}
                 className="input input-bordered w-full"
@@ -582,7 +713,7 @@ const ClientDeliveryDetail = () => {
               <button onClick={() => setShowStartModal(false)} className="btn btn-ghost" disabled={actionLoading}>
                 Annuler
               </button>
-              <button onClick={handleStartDelivery} className="btn btn-primary gap-2" disabled={actionLoading}>
+              <button onClick={handleStart} className="btn btn-primary gap-2" disabled={actionLoading}>
                 {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                 Démarrer
               </button>
@@ -597,8 +728,8 @@ const ClientDeliveryDetail = () => {
       {showConfirmModal && (
         <div className="modal modal-open">
           <div className="modal-box">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 text-success" />
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-success">
+              <CheckCircle className="w-5 h-5" />
               Confirmer la livraison
             </h3>
             <div className="alert alert-warning mb-4">
@@ -606,12 +737,13 @@ const ClientDeliveryDetail = () => {
               <div>
                 <p className="font-semibold">Attention !</p>
                 <p className="text-sm">
-                  Cette action va <strong>déduire définitivement</strong> les quantités du stock du client <strong>{delivery.client_name}</strong>.
+                  Cette action va <strong>déduire définitivement</strong> les
+                  quantités du stock de <strong>{delivery.client_name}</strong>.
                 </p>
               </div>
             </div>
             <div className="bg-gray-50 rounded p-3 text-sm space-y-1">
-              <p><strong>Quantité totale :</strong> {delivery.total_quantity} unités</p>
+              <p><strong>Quantité :</strong> {delivery.total_quantity} unités</p>
               <p><strong>Valeur :</strong> {formatCurrency(delivery.total_value)}</p>
               <p><strong>Destinataire :</strong> {delivery.recipient_name}</p>
             </div>
@@ -619,7 +751,7 @@ const ClientDeliveryDetail = () => {
               <button onClick={() => setShowConfirmModal(false)} className="btn btn-ghost" disabled={actionLoading}>
                 Annuler
               </button>
-              <button onClick={handleConfirmDelivery} className="btn btn-success gap-2" disabled={actionLoading}>
+              <button onClick={handleConfirm} className="btn btn-success gap-2" disabled={actionLoading}>
                 {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                 Confirmer
               </button>
@@ -652,7 +784,7 @@ const ClientDeliveryDetail = () => {
               <button onClick={() => setShowCancelModal(false)} className="btn btn-ghost" disabled={actionLoading}>
                 Annuler
               </button>
-              <button onClick={handleCancelDelivery} className="btn btn-error gap-2" disabled={actionLoading}>
+              <button onClick={handleCancel} className="btn btn-error gap-2" disabled={actionLoading}>
                 {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
                 Confirmer l'annulation
               </button>
