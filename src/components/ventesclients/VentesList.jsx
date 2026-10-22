@@ -1,6 +1,6 @@
 // src/components/ventes/VentesList.jsx
 // ============================================================
-// VERSION COMPLETE AVEC CHARGEMENT PAR DATE
+// VERSION COMPLÈTE CORRIGÉE - Pagination serveur + filtres dates
 // ============================================================
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -24,7 +24,9 @@ const VentesList = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [paymentFilter, setPaymentFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [venteToDelete, setVenteToDelete] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -37,6 +39,8 @@ const VentesList = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [isFirstLoad, setIsFirstLoad] = useState(true);
+  // ✅ Flag pour empêcher le rechargement automatique en mode range
+  const [rangeReady, setRangeReady] = useState(false);
 
   // ============================================================
   // FORMATAGE
@@ -61,7 +65,10 @@ const VentesList = () => {
     try {
       const d = typeof date === 'string' ? new Date(date) : date;
       if (isNaN(d.getTime())) return '';
-      return d.toISOString().split('T')[0];
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
     } catch {
       return '';
     }
@@ -82,9 +89,9 @@ const VentesList = () => {
   const getToken = () => localStorage.getItem('Token');
 
   // ============================================================
-  // CHARGEMENT DES VENTES DU JOUR
+  // ✅ CHARGEMENT DES VENTES (VERSION ROBUSTE)
   // ============================================================
-  const fetchTodaySales = useCallback(async () => {
+  const fetchVentes = useCallback(async (page = 1) => {
     setLoading(true);
     try {
       const token = getToken();
@@ -94,127 +101,92 @@ const VentesList = () => {
         return;
       }
 
-      const dateStr = formatDateInput(selectedDate);
       const params = new URLSearchParams();
-      params.append('date', dateStr);
+      params.append('page', page);
+      params.append('page_size', itemsPerPage);
+
       if (statusFilter !== 'all') params.append('status', statusFilter);
       if (paymentFilter !== 'all') params.append('payment_status', paymentFilter);
       if (searchTerm) params.append('search', searchTerm);
 
-      const response = await AxiosInstance.get(`/sales/by-date/?${params.toString()}`, {
+      let url;
+      if (viewMode === 'today') {
+        params.append('date', formatDateInput(selectedDate));
+        url = `/sales/by-date/?${params.toString()}`;
+      } else if (viewMode === 'range') {
+        if (!dateFrom || !dateTo) {
+          console.warn('⚠️ Mode range sans dates, annulation');
+          setLoading(false);
+          return;
+        }
+        params.append('date_from', dateFrom);
+        params.append('date_to', dateTo);
+        url = `/sales/date-range/?${params.toString()}`;
+        console.log('📅 URL date-range:', url);
+      } else {
+        url = `/sales/?${params.toString()}`;
+      }
+
+      console.log('🔍 fetchVentes:', { url, page, viewMode });
+
+      const response = await AxiosInstance.get(url, {
         headers: { 'Authorization': `Token ${token}` }
       });
 
       const data = response.data;
-      setVentes(data.results || []);
-      setStats(data.stats || { total: 0, total_amount: 0, by_status: {}, by_payment_status: {} });
+      console.log('✅ Réponse API:', data);
+
+      // ✅ GESTION ROBUSTE de la réponse
+      let results = [];
+      let count = 0;
+
+      if (Array.isArray(data)) {
+        results = data;
+        count = data.length;
+      } else if (data && typeof data === 'object') {
+        if (Array.isArray(data.results)) {
+          results = data.results;
+        }
+        count = typeof data.count === 'number' ? data.count : results.length;
+      }
+
+      setVentes(results);
+      setTotalCount(count);
+
+      const pages = count > 0 ? Math.ceil(count / itemsPerPage) : 1;
+      setTotalPages(pages);
+
+      if (data && data.stats) {
+        setStats(data.stats);
+      } else {
+        setStats({
+          total: count,
+          total_amount: 0,
+          by_status: {},
+          by_payment_status: {}
+        });
+      }
+
       setIsFirstLoad(false);
+
     } catch (error) {
-      console.error('Erreur:', error);
+      console.error('❌ Erreur fetchVentes:', error);
       if (error.response?.status === 401) {
         showNotification('Session expirée', 'error');
         setTimeout(() => navigate('/login'), 2000);
+      } else if (error.response?.status === 400) {
+        showNotification(error.response.data.error || 'Erreur de paramètres', 'error');
       } else {
         showNotification('Erreur de chargement', 'error');
       }
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedDate, statusFilter, paymentFilter, searchTerm, navigate]);
-
-  // ============================================================
-  // CHARGEMENT DES VENTES SUR UNE PLAGE DE DATES
-  // ============================================================
-  const fetchDateRangeSales = useCallback(async () => {
-    if (!dateFrom || !dateTo) {
-      showNotification('Veuillez sélectionner une plage de dates', 'warning');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const token = getToken();
-      if (!token) {
-        showNotification('Session expirée', 'error');
-        setTimeout(() => navigate('/login'), 2000);
-        return;
-      }
-
-      const params = new URLSearchParams();
-      params.append('date_from', dateFrom);
-      params.append('date_to', dateTo);
-      if (statusFilter !== 'all') params.append('status', statusFilter);
-      if (paymentFilter !== 'all') params.append('payment_status', paymentFilter);
-      if (searchTerm) params.append('search', searchTerm);
-
-      const response = await AxiosInstance.get(`/sales/date-range/?${params.toString()}`, {
-        headers: { 'Authorization': `Token ${token}` }
-      });
-
-      const data = response.data;
-      setVentes(data.results || []);
-      setStats({
-        total: data.stats?.total || 0,
-        total_amount: data.stats?.total_amount || 0,
-        by_status: {},
-        by_payment_status: {}
-      });
+      setVentes([]);
+      setTotalCount(0);
+      setTotalPages(1);
       setIsFirstLoad(false);
-    } catch (error) {
-      console.error('Erreur:', error);
-      showNotification('Erreur de chargement', 'error');
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo, statusFilter, paymentFilter, searchTerm, navigate]);
-
-  // ============================================================
-  // CHARGEMENT DE TOUTES LES VENTES (mode 'all')
-  // ============================================================
-  const fetchAllSales = useCallback(async () => {
-    setLoading(true);
-    try {
-      const token = getToken();
-      if (!token) {
-        showNotification('Session expirée', 'error');
-        setTimeout(() => navigate('/login'), 2000);
-        return;
-      }
-
-      const params = new URLSearchParams();
-      if (statusFilter !== 'all') params.append('status', statusFilter);
-      if (paymentFilter !== 'all') params.append('payment_status', paymentFilter);
-      if (searchTerm) params.append('search', searchTerm);
-
-      const response = await AxiosInstance.get(`/sales/?${params.toString()}`, {
-        headers: { 'Authorization': `Token ${token}` }
-      });
-
-      let data = response.data;
-      let ventesData = [];
-      if (Array.isArray(data)) {
-        ventesData = data;
-      } else if (data.results) {
-        ventesData = data.results;
-      } else {
-        ventesData = [];
-      }
-
-      setVentes(ventesData);
-      setStats({
-        total: ventesData.length,
-        total_amount: ventesData.reduce((sum, v) => sum + parseFloat(v.total || 0), 0),
-        by_status: {},
-        by_payment_status: {}
-      });
-      setIsFirstLoad(false);
-    } catch (error) {
-      console.error('Erreur:', error);
-      showNotification('Erreur de chargement', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [statusFilter, paymentFilter, searchTerm, navigate]);
+  }, [viewMode, selectedDate, dateFrom, dateTo, statusFilter, paymentFilter, searchTerm, itemsPerPage, navigate]);
 
   // ============================================================
   // NAVIGATION JOURS
@@ -239,20 +211,74 @@ const VentesList = () => {
   const goToToday = () => {
     setSelectedDate(new Date());
     setViewMode('today');
+    setCurrentPage(1);
+    setRangeReady(false);
   };
 
   // ============================================================
-  // EFFET DE CHARGEMENT
+  // ✅ GESTION DES CHANGEMENTS DE MODE
+  // ============================================================
+  const handleModeChange = (mode) => {
+    setViewMode(mode);
+    setCurrentPage(1);
+
+    if (mode === 'range') {
+      setRangeReady(false);
+      if (dateFrom && dateTo) {
+        setRangeReady(true);
+      }
+    } else {
+      setRangeReady(false);
+    }
+  };
+
+  // ============================================================
+  // ✅ UN SEUL useEffect - gère TOUS les cas
   // ============================================================
   useEffect(() => {
-    if (viewMode === 'today') {
-      fetchTodaySales();
-    } else if (viewMode === 'range') {
-      fetchDateRangeSales();
-    } else {
-      fetchAllSales();
+    if (viewMode === 'range' && (!dateFrom || !dateTo)) {
+      console.log('⏸️ Mode range : en attente des dates');
+      return;
     }
-  }, [viewMode, fetchTodaySales, fetchDateRangeSales, fetchAllSales]);
+
+    if (viewMode === 'range' && !rangeReady) {
+      console.log('⏸️ Mode range : dates prêtes, attente validation');
+      return;
+    }
+
+    console.log('🚀 Chargement automatique:', { viewMode, currentPage, dateFrom, dateTo });
+    fetchVentes(currentPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, selectedDate, dateFrom, dateTo, statusFilter, paymentFilter, searchTerm, itemsPerPage, currentPage, rangeReady]);
+
+  // ============================================================
+  // RECHARGEMENT POUR MODE 'range'
+  // ============================================================
+  const handleDateRangeSearch = () => {
+    if (!dateFrom || !dateTo) {
+      showNotification('Veuillez sélectionner une plage de dates', 'warning');
+      return;
+    }
+
+    const from = new Date(dateFrom);
+    const to = new Date(dateTo);
+
+    if (to < from) {
+      showNotification('La date de fin doit être après la date de début', 'warning');
+      return;
+    }
+
+    const diffDays = Math.ceil((to - from) / (1000 * 60 * 60 * 24));
+
+    if (diffDays > 365) {
+      showNotification('La plage ne peut pas dépasser 365 jours', 'warning');
+      return;
+    }
+
+    console.log('🔘 Bouton Charger cliqué:', { dateFrom, dateTo });
+    setRangeReady(true);
+    setCurrentPage(1);
+  };
 
   // ============================================================
   // RÉCUPÉRATION DES DONNÉES COMPLÈTES POUR TICKET
@@ -287,7 +313,7 @@ const VentesList = () => {
       const completeVente = await fetchCompleteSale(saleId);
 
       if (!completeVente) {
-        showNotification('Impossible de récupérer les données de la vente', 'error');
+        showNotification('Impossible de récupérer les données', 'error');
         setPrintingId(null);
         return;
       }
@@ -326,9 +352,7 @@ const VentesList = () => {
         headers: { 'Authorization': `Token ${token}` }
       });
       showNotification('Vente supprimée', 'success');
-      if (viewMode === 'today') fetchTodaySales();
-      else if (viewMode === 'range') fetchDateRangeSales();
-      else fetchAllSales();
+      fetchVentes(currentPage);
       setShowDeleteModal(false);
       setVenteToDelete(null);
     } catch (error) {
@@ -366,9 +390,7 @@ const VentesList = () => {
       );
 
       showNotification(`Statut mis à jour: ${status}`, 'success');
-      if (viewMode === 'today') fetchTodaySales();
-      else if (viewMode === 'range') fetchDateRangeSales();
-      else fetchAllSales();
+      fetchVentes(currentPage);
     } catch (error) {
       console.error('Erreur mise à jour statut:', error);
       showNotification('Erreur lors de la mise à jour', 'error');
@@ -394,9 +416,7 @@ const VentesList = () => {
       );
 
       showNotification('Vente confirmée avec succès', 'success');
-      if (viewMode === 'today') fetchTodaySales();
-      else if (viewMode === 'range') fetchDateRangeSales();
-      else fetchAllSales();
+      fetchVentes(currentPage);
     } catch (error) {
       console.error('Erreur confirmation:', error);
       showNotification('Erreur lors de la confirmation', 'error');
@@ -422,9 +442,7 @@ const VentesList = () => {
       );
 
       showNotification('Vente marquée comme payée', 'success');
-      if (viewMode === 'today') fetchTodaySales();
-      else if (viewMode === 'range') fetchDateRangeSales();
-      else fetchAllSales();
+      fetchVentes(currentPage);
     } catch (error) {
       console.error('Erreur paiement:', error);
       showNotification('Erreur lors du paiement', 'error');
@@ -438,14 +456,12 @@ const VentesList = () => {
   };
 
   // ============================================================
-  // PAGINATION
+  // PAGINATION SERVEUR
   // ============================================================
-  const paginatedVentes = ventes.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  const totalPages = Math.ceil(ventes.length / itemsPerPage);
+  const handlePageChange = (newPage) => {
+    if (newPage < 1 || newPage > totalPages) return;
+    setCurrentPage(newPage);
+  };
 
   // ============================================================
   // BADGES
@@ -544,17 +560,14 @@ const VentesList = () => {
             </div>
             <p className="text-sm text-gray-500 ml-1">
               {viewMode === 'today' ? `Ventes du ${formatDate(selectedDate)}` :
-               viewMode === 'range' ? `Période du ${formatDate(dateFrom)} au ${formatDate(dateTo)}` :
+               viewMode === 'range' ? (dateFrom && dateTo ? `Période du ${formatDate(dateFrom)} au ${formatDate(dateTo)}` : 'Sélectionnez une plage de dates') :
                `Toutes les ventes`}
+              {totalCount > 0 && ` • ${totalCount.toLocaleString('fr-FR')} vente(s)`}
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
             <button
-              onClick={() => {
-                if (viewMode === 'today') fetchTodaySales();
-                else if (viewMode === 'range') fetchDateRangeSales();
-                else fetchAllSales();
-              }}
+              onClick={() => fetchVentes(currentPage)}
               className="btn btn-sm sm:btn-md btn-outline gap-2"
               disabled={loading}
             >
@@ -573,19 +586,19 @@ const VentesList = () => {
           <div className="flex gap-2 flex-wrap">
             <button
               className={`btn btn-sm ${viewMode === 'today' ? 'btn-primary' : 'btn-ghost'}`}
-              onClick={() => { setViewMode('today'); goToToday(); }}
+              onClick={() => handleModeChange('today')}
             >
               Aujourd'hui
             </button>
             <button
               className={`btn btn-sm ${viewMode === 'range' ? 'btn-primary' : 'btn-ghost'}`}
-              onClick={() => setViewMode('range')}
+              onClick={() => handleModeChange('range')}
             >
               Plage de dates
             </button>
             <button
               className={`btn btn-sm ${viewMode === 'all' ? 'btn-primary' : 'btn-ghost'}`}
-              onClick={() => setViewMode('all')}
+              onClick={() => handleModeChange('all')}
             >
               Toutes
             </button>
@@ -617,34 +630,46 @@ const VentesList = () => {
           )}
 
           {viewMode === 'range' && (
-            <div className="flex items-center gap-2 flex-1 justify-center sm:justify-end flex-wrap">
-              <input
-                type="date"
-                className="input input-bordered input-sm"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-              />
-              <span className="text-sm text-gray-500">à</span>
-              <input
-                type="date"
-                className="input input-bordered input-sm"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-              />
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={fetchDateRangeSales}
-                disabled={!dateFrom || !dateTo || loading}
-              >
-                <Search className="w-3 h-3" /> Charger
-              </button>
+            <div className="flex flex-col sm:flex-row items-center gap-2 flex-1 justify-center sm:justify-end flex-wrap">
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  className="input input-bordered input-sm"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
+                <span className="text-sm text-gray-500">à</span>
+                <input
+                  type="date"
+                  className="input input-bordered input-sm"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={handleDateRangeSearch}
+                  disabled={!dateFrom || !dateTo || loading}
+                >
+                  <Search className="w-3 h-3" /> Charger
+                </button>
+              </div>
+              {(!dateFrom || !dateTo) && (
+                <span className="text-xs text-warning">
+                  ⚠️ Sélectionnez les deux dates puis cliquez sur Charger
+                </span>
+              )}
+              {dateFrom && dateTo && !loading && rangeReady && (
+                <span className="text-xs text-success">
+                  ✅ {totalCount} vente(s) trouvée(s)
+                </span>
+              )}
             </div>
           )}
         </div>
       </div>
 
       {/* Statistiques */}
-      {viewMode === 'today' && stats && stats.total !== undefined && (
+      {stats && stats.total !== undefined && stats.total > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
           <div className="bg-white shadow-md rounded-xl p-3">
             <div className="flex items-center justify-between">
@@ -673,23 +698,6 @@ const VentesList = () => {
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {viewMode === 'range' && stats && stats.total !== undefined && (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white shadow-md rounded-xl p-3">
-            <div className="flex items-center justify-between">
-              <div><p className="text-xs text-gray-500">Total ventes</p><p className="text-xl font-bold text-primary">{stats.total || 0}</p></div>
-              <ShoppingCart className="w-8 h-8 text-primary/20" />
-            </div>
-          </div>
-          <div className="bg-white shadow-md rounded-xl p-3">
-            <div className="flex items-center justify-between">
-              <div><p className="text-xs text-gray-500">Montant total</p><p className="text-xl font-bold text-success">{formatCurrency(stats.total_amount)}</p></div>
-              <CreditCard className="w-8 h-8 text-success/20" />
-            </div>
-          </div>
         </div>
       )}
 
@@ -768,12 +776,16 @@ const VentesList = () => {
                 ))
               )}
 
-              {!loading && paginatedVentes.length === 0 && (
+              {!loading && ventes.length === 0 && (
                 <tr>
                   <td colSpan="7" className="text-center py-16">
                     <div className="flex flex-col items-center gap-3">
                       <ShoppingCart className="w-16 h-16 text-gray-300" />
-                      <p className="text-gray-500 font-medium">Aucune vente trouvée</p>
+                      <p className="text-gray-500 font-medium">
+                        {viewMode === 'range' && (!dateFrom || !dateTo)
+                          ? 'Sélectionnez une plage de dates'
+                          : 'Aucune vente trouvée'}
+                      </p>
                       <button onClick={() => navigate('/ventes/nouveau')} className="btn btn-primary btn-sm gap-2">
                         <Plus className="w-4 h-4" /> Créer une vente
                       </button>
@@ -782,7 +794,7 @@ const VentesList = () => {
                 </tr>
               )}
 
-              {!loading && paginatedVentes.map(vente => (
+              {!loading && ventes.map(vente => (
                 <tr key={vente.id} className="hover:bg-gray-50 transition-colors">
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-2">
@@ -879,40 +891,57 @@ const VentesList = () => {
           </table>
         </div>
 
-        {/* Pagination */}
-        {ventes.length > 0 && (
+        {/* ✅ PAGINATION SERVEUR */}
+        {totalCount > 0 && (
           <div className="px-6 py-4 border-t flex flex-col sm:flex-row items-center justify-between gap-4 bg-gray-50">
             <div className="text-sm text-gray-500">
-              Affichage de {(currentPage - 1) * itemsPerPage + 1} à {Math.min(currentPage * itemsPerPage, ventes.length)} sur {ventes.length}
+              Affichage de {Math.min((currentPage - 1) * itemsPerPage + 1, totalCount)} à {Math.min(currentPage * itemsPerPage, totalCount)} sur {totalCount.toLocaleString('fr-FR')}
             </div>
             <div className="flex items-center gap-3">
               <select
                 className="select select-bordered select-sm"
                 value={itemsPerPage}
-                onChange={(e) => { setItemsPerPage(parseInt(e.target.value)); setCurrentPage(1); }}
+                onChange={(e) => {
+                  setItemsPerPage(parseInt(e.target.value));
+                  setCurrentPage(1);
+                }}
               >
-                <option value="5">5 lignes</option>
-                <option value="10">10 lignes</option>
                 <option value="20">20 lignes</option>
                 <option value="50">50 lignes</option>
+                <option value="100">100 lignes</option>
+                <option value="200">200 lignes</option>
               </select>
               <div className="join">
                 <button
                   className="join-item btn btn-sm"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1 || totalPages === 0}
+                  onClick={() => handlePageChange(1)}
+                  disabled={currentPage === 1 || loading}
+                >
+                  «
+                </button>
+                <button
+                  className="join-item btn btn-sm"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1 || loading}
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <span className="join-item btn btn-sm btn-disabled">
-                  {totalPages > 0 ? `Page ${currentPage} / ${totalPages}` : 'Page 0'}
+                  Page {currentPage} / {Math.max(totalPages, 1)}
                 </span>
                 <button
                   className="join-item btn btn-sm"
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages || totalPages === 0}
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage >= totalPages || loading}
                 >
                   <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  className="join-item btn btn-sm"
+                  onClick={() => handlePageChange(totalPages)}
+                  disabled={currentPage >= totalPages || loading}
+                >
+                  »
                 </button>
               </div>
             </div>

@@ -1,13 +1,6 @@
 // src/components/pos/PosForm.jsx
 // ============================================================
-// VERSION PROFESSIONNELLE - CORRIGEE ET OPTIMISEE
-// - Scan multiple du même produit autorisé (1 scan = +1 quantité)
-// - Gestion robuste des erreurs
-// - Performance optimisée
-// - UI/UX améliorée
-// - Recherche client fonctionnelle dans le modal
-// - Création rapide de client directement dans le modal
-// - ✅ Gestion intelligente du prix de gros (masqué si indisponible)
+// VERSION OPTIMISÉE - Recherche serveur + Voir tous les produits
 // ============================================================
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -23,7 +16,48 @@ import {
   Save, Tag, Layers
 } from 'lucide-react';
 
-const PosForm = () => {
+// ============================================================
+// ✅ ERROR BOUNDARY
+// ============================================================
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('❌ ErrorBoundary PosForm:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-base-200 p-6 flex items-center justify-center">
+          <div className="bg-base-100 rounded-2xl shadow-lg p-8 max-w-2xl w-full">
+            <div className="flex items-center gap-3 mb-4 text-error">
+              <AlertCircle className="w-8 h-8" />
+              <h2 className="text-2xl font-bold">Erreur dans le point de vente</h2>
+            </div>
+            <pre className="bg-base-200 p-4 rounded-lg text-sm overflow-auto max-h-64 text-red-600">
+              {this.state.error?.toString()}
+            </pre>
+            <div className="mt-6 flex gap-3">
+              <button onClick={() => window.location.reload()} className="btn btn-primary">Recharger</button>
+              <button onClick={() => window.location.href = '/dashboard'} className="btn btn-ghost">Dashboard</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ============================================================
+// COMPOSANT PRINCIPAL
+// ============================================================
+const PosFormContent = () => {
   const navigate = useNavigate();
   const searchInputRef = useRef(null);
   const barcodeInputRef = useRef(null);
@@ -33,6 +67,9 @@ const PosForm = () => {
   // ÉTATS
   // ============================================================
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadingAll, setLoadingAll] = useState(false);       // ✅ NOUVEAU
+  const [allProductsLoaded, setAllProductsLoaded] = useState(false); // ✅ NOUVEAU
   const [submitting, setSubmitting] = useState(false);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -41,6 +78,8 @@ const PosForm = () => {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [selectedWarehouse, setSelectedWarehouse] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');  // ✅ NOUVEAU
+  const [isSearching, setIsSearching] = useState(false);      // ✅ NOUVEAU
   const [selectedCategory, setSelectedCategory] = useState('');
   const [cart, setCart] = useState([]);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
@@ -57,18 +96,59 @@ const PosForm = () => {
   const [quantityInput, setQuantityInput] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // États pour la recherche client
+  // ✅ PAGINATION CLIENTS
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [filteredCustomers, setFilteredCustomers] = useState([]);
+  const [customerPage, setCustomerPage] = useState(1);
+  const [customerHasMore, setCustomerHasMore] = useState(true);
+  const [customerTotal, setCustomerTotal] = useState(0);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+
+  // ✅ PAGINATION PRODUITS
+  const [productHasMore, setProductHasMore] = useState(true);
+  const [productTotal, setProductTotal] = useState(0);
 
   // États pour la création rapide de client
-  const [newCustomer, setNewCustomer] = useState({ first_name: '', last_name: '', phone: '', email: '' });
+  const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', type: 'particulier' });
   const [creatingCustomer, setCreatingCustomer] = useState(false);
 
   const getToken = () => localStorage.getItem('Token');
 
   // ============================================================
-  // ✅ CALCUL : Y A-T-IL DES PRODUITS AVEC PRIX DE GROS ?
+  // ✅ NOTIFICATION
+  // ============================================================
+  const showNotification = useCallback((message, type = 'success') => {
+    setNotification({ show: true, message, type });
+    setTimeout(() => {
+      setNotification({ show: false, message: '', type: 'success' });
+    }, 5000);
+  }, []);
+
+  // ============================================================
+  // ✅ NORMALISATION
+  // ============================================================
+  const normalizeData = (data) => {
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.results)) return data.results;
+    return [];
+  };
+
+  const getPaginatedInfo = (data) => {
+    if (Array.isArray(data)) {
+      return { results: data, count: data.length, hasMore: false };
+    }
+    if (data && typeof data === 'object') {
+      return {
+        results: Array.isArray(data.results) ? data.results : [],
+        count: data.count || 0,
+        hasMore: !!data.next
+      };
+    }
+    return { results: [], count: 0, hasMore: false };
+  };
+
+  // ============================================================
+  // ✅ PRIX DE GROS DISPONIBLES
   // ============================================================
   const hasWholesaleProducts = useMemo(() => {
     return products.some(p => (parseFloat(p.wholesale_price) || 0) > 0);
@@ -79,23 +159,150 @@ const PosForm = () => {
   }, [products]);
 
   // ============================================================
-  // 1. CHARGEMENT DES DONNEES
+  // ✅ URL DES IMAGES
   // ============================================================
   const getImageUrl = useCallback((imagePath) => {
     if (!imagePath) return null;
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      return imagePath;
-    }
-    if (imagePath.startsWith('/media/')) {
-      return `http://127.0.0.1:8000${imagePath}`;
-    }
-    if (imagePath.startsWith('/')) {
-      return `http://127.0.0.1:8000${imagePath}`;
-    }
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) return imagePath;
+    if (imagePath.startsWith('/media/')) return `http://127.0.0.1:8000${imagePath}`;
+    if (imagePath.startsWith('/')) return `http://127.0.0.1:8000${imagePath}`;
     return `http://127.0.0.1:8000/media/${imagePath}`;
   }, []);
 
-  const fetchData = useCallback(async () => {
+  // ============================================================
+  // ✅ TRANSFORMATION PRODUIT
+  // ============================================================
+  const transformProduct = useCallback((product) => ({
+    ...product,
+    image_url: product.image_url || getImageUrl(product.image),
+    stock_quantity: parseFloat(product.current_stock) || 0,
+    selling_price: parseFloat(product.selling_price) || 0,
+    wholesale_price: parseFloat(product.wholesale_price) || 0,
+    barcode: product.barcode || '',
+    display_price: parseFloat(product.selling_price) || 0
+  }), [getImageUrl]);
+
+  // ============================================================
+  // ✅ CHARGEMENT DES PRODUITS (avec recherche serveur)
+  // ============================================================
+  const fetchProducts = useCallback(async (page = 1, append = false, search = '') => {
+    try {
+      const token = getToken();
+      if (!token) return;
+
+      const params = new URLSearchParams();
+      params.append('status', 'active');
+      params.append('page', page);
+      params.append('page_size', 50);
+
+      if (search) params.append('search', search);
+      if (selectedCategory) params.append('category', selectedCategory);
+
+      const response = await AxiosInstance.get(`/products/?${params.toString()}`, {
+        headers: { 'Authorization': `Token ${token}` }
+      });
+
+      const { results, count, hasMore } = getPaginatedInfo(response.data);
+      const productsWithData = results.map(transformProduct);
+
+      if (append) {
+        setProducts(prev => [...prev, ...productsWithData]);
+      } else {
+        setProducts(productsWithData);
+      }
+
+      setProductTotal(count);
+      setProductHasMore(hasMore);
+
+    } catch (error) {
+      console.error('❌ Erreur produits:', error);
+    }
+  }, [selectedCategory, transformProduct]);
+
+  // ============================================================
+  // ✅ NOUVEAU : CHARGER TOUS LES PRODUITS
+  // ============================================================
+  const loadAllProducts = useCallback(async () => {
+    if (loadingAll) return;
+
+    setLoadingAll(true);
+    try {
+      const token = getToken();
+      if (!token) return;
+
+      console.log('📦 Chargement de TOUS les produits...');
+
+      const params = new URLSearchParams();
+      params.append('status', 'active');
+      params.append('page', 1);
+      params.append('page_size', 5000); // ✅ Très grande taille pour tout charger
+
+      if (selectedCategory) params.append('category', selectedCategory);
+
+      const response = await AxiosInstance.get(`/products/?${params.toString()}`, {
+        headers: { 'Authorization': `Token ${token}` }
+      });
+
+      const { results, count } = getPaginatedInfo(response.data);
+      const productsWithData = results.map(transformProduct);
+
+      setProducts(productsWithData);
+      setProductTotal(count);
+      setProductHasMore(false);
+      setAllProductsLoaded(true);
+
+      showNotification(`✅ ${productsWithData.length} produits chargés`, 'success');
+      console.log(`✅ ${productsWithData.length} produits chargés`);
+
+    } catch (error) {
+      console.error('❌ Erreur chargement tous produits:', error);
+      showNotification('Erreur lors du chargement de tous les produits', 'error');
+    } finally {
+      setLoadingAll(false);
+    }
+  }, [loadingAll, selectedCategory, transformProduct, showNotification]);
+
+  // ============================================================
+  // ✅ CHARGEMENT DES CLIENTS
+  // ============================================================
+  const fetchCustomers = useCallback(async (page = 1, search = '', append = false) => {
+    setLoadingCustomers(true);
+    try {
+      const token = getToken();
+      if (!token) return;
+
+      const params = new URLSearchParams();
+      params.append('page', page);
+      params.append('page_size', 50);
+      if (search) params.append('search', search);
+
+      const response = await AxiosInstance.get(`/clients/?${params.toString()}`, {
+        headers: { 'Authorization': `Token ${token}` }
+      });
+
+      const { results, count, hasMore } = getPaginatedInfo(response.data);
+
+      if (append) {
+        setCustomers(prev => [...prev, ...results]);
+      } else {
+        setCustomers(results);
+      }
+
+      setFilteredCustomers(prev => append ? [...prev, ...results] : results);
+      setCustomerTotal(count);
+      setCustomerHasMore(hasMore);
+
+    } catch (error) {
+      console.error('❌ Erreur clients:', error);
+    } finally {
+      setLoadingCustomers(false);
+    }
+  }, []);
+
+  // ============================================================
+  // ✅ CHARGEMENT INITIAL
+  // ============================================================
+  const fetchInitialData = useCallback(async () => {
     setLoading(true);
     try {
       const token = getToken();
@@ -107,59 +314,115 @@ const PosForm = () => {
 
       const headers = { 'Authorization': `Token ${token}` };
 
-      const [productsRes, categoriesRes, customersRes, warehousesRes] = await Promise.all([
-        AxiosInstance.get('/products/?status=active&limit=1000', { headers }),
-        AxiosInstance.get('/categories/', { headers }),
-        AxiosInstance.get('/clients/?limit=500', { headers }),
+      console.log('🔍 Chargement initial POS...');
+
+      const [productsRes, customersRes, categoriesRes, warehousesRes] = await Promise.all([
+        AxiosInstance.get('/products/?status=active&page=1&page_size=50', { headers })
+          .catch(() => ({ data: { results: [], count: 0 } })),
+        AxiosInstance.get('/clients/?page=1&page_size=50', { headers })
+          .catch(() => ({ data: { results: [], count: 0 } })),
+        AxiosInstance.get('/categories/', { headers })
+          .catch(() => ({ data: [] })),
         AxiosInstance.get('/warehouses/?active=true', { headers })
+          .catch(() => ({ data: [] }))
       ]);
 
-      const productsWithData = (productsRes.data || []).map(product => ({
-        ...product,
-        image_url: product.image_url || getImageUrl(product.image),
-        stock_quantity: product.current_stock || 0,
-        selling_price: parseFloat(product.selling_price) || 0,
-        wholesale_price: parseFloat(product.wholesale_price) || 0,
-        barcode: product.barcode || '',
-        display_price: priceType === 'gros'
-          ? (parseFloat(product.wholesale_price) || parseFloat(product.selling_price) || 0)
-          : (parseFloat(product.selling_price) || 0)
-      }));
+      const productsInfo = getPaginatedInfo(productsRes.data);
+      const customersInfo = getPaginatedInfo(customersRes.data);
+
+      const productsWithData = productsInfo.results.map(transformProduct);
 
       setProducts(productsWithData);
-      setCategories(categoriesRes.data || []);
+      setProductTotal(productsInfo.count);
+      setProductHasMore(productsInfo.hasMore);
 
-      const customersData = customersRes.data || [];
-      setCustomers(customersData);
-      setFilteredCustomers(customersData);
+      setCustomers(customersInfo.results);
+      setFilteredCustomers(customersInfo.results);
+      setCustomerTotal(customersInfo.count);
+      setCustomerHasMore(customersInfo.hasMore);
 
-      setWarehouses(warehousesRes.data || []);
+      setCategories(normalizeData(categoriesRes.data));
 
-      if (warehousesRes.data && warehousesRes.data.length > 0) {
-        setSelectedWarehouse(warehousesRes.data[0]);
+      const warehousesData = normalizeData(warehousesRes.data);
+      setWarehouses(warehousesData);
+
+      if (warehousesData.length > 0) {
+        setSelectedWarehouse(warehousesData[0]);
       }
+
+      console.log('✅ Chargement initial terminé:', {
+        products: productsWithData.length,
+        productsTotal: productsInfo.count,
+        customers: customersInfo.results.length,
+        customersTotal: customersInfo.count,
+        categories: normalizeData(categoriesRes.data).length,
+        warehouses: warehousesData.length
+      });
 
       setIsInitialized(true);
 
     } catch (error) {
-      console.error('Erreur chargement données:', error);
-      showNotification('Erreur de chargement des données', 'error');
+      console.error('❌ Erreur chargement:', error);
+      showNotification('Erreur de chargement', 'error');
     } finally {
       setLoading(false);
     }
-  }, [getImageUrl, navigate, priceType]);
+  }, [navigate, showNotification, transformProduct]);
 
   useEffect(() => {
-    fetchData();
+    fetchInitialData();
     const timer = setTimeout(() => {
-      if (barcodeInputRef.current) {
-        barcodeInputRef.current.focus();
-      }
+      if (barcodeInputRef.current) barcodeInputRef.current.focus();
     }, 800);
     return () => clearTimeout(timer);
-  }, [fetchData]);
+  }, [fetchInitialData]);
 
-  // Mise à jour des prix affichés selon le mode
+  // ============================================================
+  // ✅ DEBOUNCE DE LA RECHERCHE (500ms)
+  // ============================================================
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // ============================================================
+  // ✅ RECHERCHE SERVEUR PRODUITS (déclenchée par debouncedSearchTerm)
+  // ============================================================
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const performSearch = async () => {
+      setIsSearching(true);
+      try {
+        await fetchProducts(1, false, debouncedSearchTerm);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    performSearch();
+  }, [debouncedSearchTerm, selectedCategory, isInitialized, fetchProducts]);
+
+  // ============================================================
+  // ✅ RECHERCHE SERVEUR CLIENTS (debounce)
+  // ============================================================
+  useEffect(() => {
+    if (!showCustomerModal) return;
+
+    const timer = setTimeout(() => {
+      setCustomerPage(1);
+      fetchCustomers(1, customerSearchTerm, false);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [customerSearchTerm, showCustomerModal, fetchCustomers]);
+
+  // ============================================================
+  // ✅ METTRE À JOUR LES PRIX SELON LE MODE
+  // ============================================================
   useEffect(() => {
     if (!isInitialized) return;
     setProducts(prevProducts =>
@@ -173,7 +436,7 @@ const PosForm = () => {
   }, [priceType, isInitialized]);
 
   // ============================================================
-  // ✅ SÉCURITÉ : FORCER LE MODE DÉTAIL SI AUCUN PRIX DE GROS
+  // ✅ FORCER MODE DÉTAIL SI AUCUN PRIX DE GROS
   // ============================================================
   useEffect(() => {
     if (!isInitialized) return;
@@ -182,35 +445,38 @@ const PosForm = () => {
       setCart(prevCart => {
         const hasGrosItems = prevCart.some(item => item.price_type === 'gros');
         if (hasGrosItems) {
-          showNotification(
-            'Mode Gros désactivé : aucun produit n\'a de prix de gros défini',
-            'error'
-          );
+          showNotification('Mode Gros désactivé', 'error');
           return prevCart.filter(item => item.price_type !== 'gros');
         }
         return prevCart;
       });
     }
-  }, [hasWholesaleProducts, priceType, isInitialized]);
-
-  // Filtrer les clients selon la recherche
-  useEffect(() => {
-    if (!customerSearchTerm.trim()) {
-      setFilteredCustomers(customers);
-    } else {
-      const term = customerSearchTerm.toLowerCase();
-      const filtered = customers.filter(c =>
-        c.name?.toLowerCase().includes(term) ||
-        c.phone?.includes(term) ||
-        c.email?.toLowerCase().includes(term) ||
-        c.code?.toLowerCase().includes(term)
-      );
-      setFilteredCustomers(filtered);
-    }
-  }, [customerSearchTerm, customers]);
+  }, [hasWholesaleProducts, priceType, isInitialized, showNotification]);
 
   // ============================================================
-  // 2. GESTION DU CODE-BARRES - SCAN MULTIPLE AUTORISE
+  // ✅ CHARGER PLUS DE CLIENTS
+  // ============================================================
+  const loadMoreCustomers = useCallback(() => {
+    if (!customerHasMore || loadingCustomers) return;
+    const nextPage = customerPage + 1;
+    setCustomerPage(nextPage);
+    fetchCustomers(nextPage, customerSearchTerm, true);
+  }, [customerHasMore, loadingCustomers, customerPage, customerSearchTerm, fetchCustomers]);
+
+  // ============================================================
+  // ✅ CHARGER PLUS DE PRODUITS
+  // ============================================================
+  const loadMoreProducts = useCallback(async () => {
+    if (!productHasMore || loadingMore) return;
+    setLoadingMore(true);
+    const nextPage = currentPage + 1;
+    setCurrentPage(nextPage);
+    await fetchProducts(nextPage, true, debouncedSearchTerm);
+    setLoadingMore(false);
+  }, [productHasMore, loadingMore, currentPage, fetchProducts, debouncedSearchTerm]);
+
+  // ============================================================
+  // ✅ GESTION DU CODE-BARRES
   // ============================================================
   const handleBarcodeScan = useCallback((e) => {
     const value = e.target.value.trim();
@@ -218,66 +484,41 @@ const PosForm = () => {
 
     if (value.length >= 8) {
       const product = products.find(p => p.barcode === value);
-
       if (product) {
         addToCart(product);
         setBarcodeValue('');
         e.target.value = '';
-        showNotification(
-          `${product.name} ajouté au panier (${priceType === 'gros' ? 'Gros' : 'Détail'})`,
-          'success'
-        );
-
-        if (navigator.vibrate) {
-          navigator.vibrate(100);
-        }
+        showNotification(`${product.name} ajouté`, 'success');
+        if (navigator.vibrate) navigator.vibrate(100);
       } else {
         showNotification(`Code-barres "${value}" non trouvé`, 'error');
         setTimeout(() => {
-          if (barcodeInputRef.current) {
-            barcodeInputRef.current.select();
-          }
+          if (barcodeInputRef.current) barcodeInputRef.current.select();
         }, 100);
       }
     }
-  }, [products, priceType]);
+  }, [products, priceType, showNotification]);
 
   const handleBarcodeKeyDown = useCallback((e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       e.stopPropagation();
       const value = e.target.value.trim();
-      if (value.length >= 8) {
-        handleBarcodeScan(e);
-      } else if (value.length > 0) {
-        showNotification('Code-barres trop court (minimum 8 caractères)', 'error');
-        setTimeout(() => {
-          if (barcodeInputRef.current) {
-            barcodeInputRef.current.select();
-          }
-        }, 100);
-      }
+      if (value.length >= 8) handleBarcodeScan(e);
+      else if (value.length > 0) showNotification('Code-barres trop court', 'error');
     }
-  }, [handleBarcodeScan]);
+  }, [handleBarcodeScan, showNotification]);
 
   // ============================================================
-  // 3. FILTRAGE ET TRI DES PRODUITS
+  // ✅ FILTRAGE ET TRI (local, sur les produits chargés)
   // ============================================================
   const filteredProducts = useMemo(() => {
     let filtered = products;
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(p =>
-        p.name?.toLowerCase().includes(term) ||
-        p.code?.toLowerCase().includes(term) ||
-        p.barcode?.toLowerCase().includes(term)
-      );
-    }
     if (selectedCategory) {
       filtered = filtered.filter(p => p.category === parseInt(selectedCategory));
     }
     return filtered;
-  }, [products, searchTerm, selectedCategory]);
+  }, [products, selectedCategory]);
 
   const sortedProducts = useMemo(() => {
     const sorted = [...filteredProducts];
@@ -306,9 +547,7 @@ const PosForm = () => {
   );
 
   useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
+    if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
   const paginatedProducts = useMemo(() => {
@@ -318,7 +557,7 @@ const PosForm = () => {
   }, [sortedProducts, currentPage, itemsPerPage]);
 
   // ============================================================
-  // 4. GESTION DU PANIER - AVEC PROTECTION PRIX DE GROS
+  // ✅ GESTION DU PANIER
   // ============================================================
   const addToCart = useCallback((product, quantity = 1) => {
     if (product.stock_quantity <= 0) {
@@ -329,53 +568,11 @@ const PosForm = () => {
     const wholesalePrice = parseFloat(product.wholesale_price) || 0;
     const sellingPrice = parseFloat(product.selling_price) || 0;
 
-    // ✅ Si mode Gros demandé mais produit sans prix de gros → forcer en détail
     if (priceType === 'gros' && wholesalePrice <= 0) {
-      showNotification(
-        `${product.name} n'a pas de prix de gros. Ajouté au prix de détail.`,
-        'error'
-      );
-
-      if (sellingPrice <= 0) {
-        showNotification(`Prix non défini pour ${product.name}`, 'error');
-        return;
-      }
-
-      setCart(prevCart => {
-        const existingIndex = prevCart.findIndex(item => item.product.id === product.id);
-        const currentQty = existingIndex !== -1 ? prevCart[existingIndex].quantity : 0;
-        const totalQty = currentQty + quantity;
-
-        if (totalQty > product.stock_quantity) {
-          showNotification(`Stock insuffisant pour ${product.name}`, 'error');
-          return prevCart;
-        }
-
-        if (existingIndex !== -1) {
-          const newCart = [...prevCart];
-          newCart[existingIndex] = {
-            ...newCart[existingIndex],
-            quantity: totalQty,
-            unit_price: sellingPrice,
-            price_type: 'detail',
-            total: totalQty * sellingPrice
-          };
-          return newCart;
-        } else {
-          return [...prevCart, {
-            id: Date.now() + Math.random(),
-            product: product,
-            quantity: quantity,
-            unit_price: sellingPrice,
-            price_type: 'detail',
-            total: sellingPrice * quantity
-          }];
-        }
-      });
+      showNotification(`${product.name} n'a pas de prix de gros`, 'error');
       return;
     }
 
-    // --- Cas normal ---
     const unitPrice = priceType === 'gros'
       ? (wholesalePrice || sellingPrice || 0)
       : (sellingPrice || 0);
@@ -391,10 +588,7 @@ const PosForm = () => {
       const totalQty = currentQty + quantity;
 
       if (totalQty > product.stock_quantity) {
-        showNotification(
-          `Stock insuffisant pour ${product.name} (${totalQty} demandé, ${product.stock_quantity} disponible)`,
-          'error'
-        );
+        showNotification(`Stock insuffisant pour ${product.name}`, 'error');
         return prevCart;
       }
 
@@ -419,38 +613,27 @@ const PosForm = () => {
         }];
       }
     });
-  }, [priceType]);
+  }, [priceType, showNotification]);
 
   const updateCartQuantityDirect = useCallback((itemId, newQuantity) => {
     const qty = Math.max(1, parseInt(newQuantity) || 1);
-
     setCart(prevCart => {
       const itemIndex = prevCart.findIndex(i => i.id === itemId);
       if (itemIndex === -1) return prevCart;
 
       const item = prevCart[itemIndex];
-      const product = item.product;
-
-      if (qty > product.stock_quantity) {
-        showNotification(
-          `Stock insuffisant pour ${product.name} (${qty} demandé, ${product.stock_quantity} disponible)`,
-          'error'
-        );
+      if (qty > item.product.stock_quantity) {
+        showNotification(`Stock insuffisant`, 'error');
         return prevCart;
       }
 
       const newCart = [...prevCart];
-      newCart[itemIndex] = {
-        ...newCart[itemIndex],
-        quantity: qty,
-        total: qty * newCart[itemIndex].unit_price
-      };
+      newCart[itemIndex] = { ...newCart[itemIndex], quantity: qty, total: qty * newCart[itemIndex].unit_price };
       return newCart;
     });
-
     setEditingQuantity(null);
     setQuantityInput('');
-  }, []);
+  }, [showNotification]);
 
   const updateCartQuantity = useCallback((itemId, delta) => {
     setCart(prevCart => {
@@ -465,20 +648,15 @@ const PosForm = () => {
         return newCart;
       }
 
-      const product = newCart[itemIndex].product;
-      if (newQty > product.stock_quantity) {
-        showNotification(`Stock insuffisant pour ${product.name}`, 'error');
+      if (newQty > newCart[itemIndex].product.stock_quantity) {
+        showNotification('Stock insuffisant', 'error');
         return prevCart;
       }
 
-      newCart[itemIndex] = {
-        ...newCart[itemIndex],
-        quantity: newQty,
-        total: newQty * newCart[itemIndex].unit_price
-      };
+      newCart[itemIndex] = { ...newCart[itemIndex], quantity: newQty, total: newQty * newCart[itemIndex].unit_price };
       return newCart;
     });
-  }, []);
+  }, [showNotification]);
 
   const removeCartItem = useCallback((itemId) => {
     setCart(prev => prev.filter(i => i.id !== itemId));
@@ -490,102 +668,53 @@ const PosForm = () => {
       setCart([]);
       showNotification('Panier vidé', 'success');
     }
-  }, [cart.length]);
+  }, [cart.length, showNotification]);
 
   const startQuantityEdit = useCallback((itemId, currentQuantity) => {
     setEditingQuantity(itemId);
     setQuantityInput(String(currentQuantity));
     setTimeout(() => {
       const input = document.getElementById(`qty-input-${itemId}`);
-      if (input) {
-        input.focus();
-        input.select();
-      }
+      if (input) { input.focus(); input.select(); }
     }, 50);
   }, []);
 
   const handleQuantityKeyDown = useCallback((e, itemId) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      updateCartQuantityDirect(itemId, e.target.value);
-    }
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      setEditingQuantity(null);
-      setQuantityInput('');
-    }
+    if (e.key === 'Enter') { e.preventDefault(); updateCartQuantityDirect(itemId, e.target.value); }
+    if (e.key === 'Escape') { e.preventDefault(); setEditingQuantity(null); setQuantityInput(''); }
   }, [updateCartQuantityDirect]);
 
   // ============================================================
-  // 5. CALCUL DES TOTAUX
+  // ✅ CALCUL DES TOTAUX
   // ============================================================
   const totals = useMemo(() => {
     const subtotal = cart.reduce((sum, item) => sum + (item.total || 0), 0);
-    const tax_amount = 0;
-    const total = subtotal + tax_amount;
-    return { subtotal, tax_amount, total };
+    return { subtotal, tax_amount: 0, total: subtotal };
   }, [cart]);
 
   // ============================================================
-  // 6. VALIDATION DE LA VENTE
+  // ✅ VALIDATION DE LA VENTE
   // ============================================================
   const validateSale = useCallback(async () => {
     if (barcodeInputRef.current) barcodeInputRef.current.blur();
     if (searchInputRef.current) searchInputRef.current.blur();
 
-    if (cart.length === 0) {
-      showNotification('Ajoutez au moins un produit au panier', 'error');
-      return;
-    }
-
-    if (!selectedWarehouse) {
-      showNotification('Sélectionnez un entrepôt', 'error');
-      return;
-    }
-
-    // ✅ Vérifier la cohérence des prix de gros
-    if (priceType === 'gros') {
-      const invalidGrosItems = cart.filter(item => {
-        const wp = parseFloat(item.product.wholesale_price) || 0;
-        return item.price_type === 'gros' && wp <= 0;
-      });
-      if (invalidGrosItems.length > 0) {
-        showNotification(
-          `Impossible de valider : ${invalidGrosItems.length} produit(s) n'ont pas de prix de gros. Repassez en mode Détail.`,
-          'error'
-        );
-        return;
-      }
-    }
-
-    const stockErrors = cart.filter(item => item.quantity > item.product.stock_quantity);
-    if (stockErrors.length > 0) {
-      const errorMsg = stockErrors
-        .map(item => `${item.product.name}: ${item.quantity} demandé, ${item.product.stock_quantity} disponible`)
-        .join(', ');
-      showNotification(`Stock insuffisant: ${errorMsg}`, 'error');
-      return;
-    }
+    if (cart.length === 0) { showNotification('Ajoutez au moins un produit', 'error'); return; }
+    if (!selectedWarehouse) { showNotification('Sélectionnez un entrepôt', 'error'); return; }
 
     setSubmitting(true);
-
     try {
       const token = getToken();
-      if (!token) {
-        showNotification('Session expirée', 'error');
-        setTimeout(() => navigate('/login'), 2000);
-        return;
-      }
+      if (!token) { showNotification('Session expirée', 'error'); return; }
 
       const today = new Date();
       const dueDate = new Date(today);
       dueDate.setDate(dueDate.getDate() + 30);
-      const paymentDueDate = dueDate.toISOString().split('T')[0];
+      const paymentDueDate = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`;
 
       const dataToSend = {
         client: selectedCustomer?.id || null,
         warehouse: selectedWarehouse.id,
-        delivery_date: null,
         payment_due_date: paymentDueDate,
         discount_type: 'percentage',
         discount_value: 0,
@@ -611,63 +740,35 @@ const PosForm = () => {
         headers: { 'Authorization': `Token ${token}` }
       });
 
-      showNotification(
-        `Vente ${response.data.invoice_number || ''} enregistrée avec succès !`,
-        'success'
-      );
-
+      showNotification(`Vente ${response.data.invoice_number || ''} enregistrée !`, 'success');
       setCart([]);
       setSelectedCustomer(null);
 
       setTimeout(() => {
-        if (barcodeInputRef.current) {
-          barcodeInputRef.current.focus();
-        }
+        if (barcodeInputRef.current) barcodeInputRef.current.focus();
       }, 500);
 
     } catch (error) {
-      console.error('Erreur validation:', error);
-
-      let errorMessage = 'Erreur lors de l\'enregistrement de la vente';
-
+      console.error('❌ Erreur:', error);
+      let errorMessage = 'Erreur lors de l\'enregistrement';
       if (error.response?.data) {
         const data = error.response.data;
-
-        if (typeof data === 'string') {
-          errorMessage = data;
-        } else if (data.lines && Array.isArray(data.lines)) {
-          errorMessage = data.lines[0] || 'Erreur de validation des produits';
-        } else if (data.detail) {
-          errorMessage = data.detail;
-        } else if (data.message) {
-          errorMessage = data.message;
-        } else if (typeof data === 'object') {
-          const errors = [];
-          Object.entries(data).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-              errors.push(`${key}: ${value.join(', ')}`);
-            } else if (typeof value === 'string') {
-              errors.push(`${key}: ${value}`);
-            }
-          });
-          if (errors.length > 0) {
-            errorMessage = errors.join('; ');
-          }
-        }
+        if (typeof data === 'string') errorMessage = data;
+        else if (data.lines && Array.isArray(data.lines)) errorMessage = data.lines[0];
+        else if (data.detail) errorMessage = data.detail;
       }
-
       showNotification(errorMessage, 'error');
     } finally {
       setSubmitting(false);
     }
-  }, [cart, selectedWarehouse, selectedCustomer, navigate, priceType]);
+  }, [cart, selectedWarehouse, selectedCustomer, navigate, priceType, showNotification]);
 
   // ============================================================
-  // 7. GESTION DES CLIENTS - CREATION RAPIDE
+  // ✅ CRÉATION RAPIDE DE CLIENT
   // ============================================================
   const handleCreateCustomer = useCallback(async () => {
-    if (!newCustomer.first_name || !newCustomer.last_name) {
-      showNotification('Nom et prénom requis', 'error');
+    if (!newCustomer.name || !newCustomer.phone) {
+      showNotification('Nom et téléphone requis', 'error');
       return;
     }
 
@@ -676,99 +777,53 @@ const PosForm = () => {
       const token = getToken();
       const response = await AxiosInstance.post('/clients/', {
         code: `CL-${Date.now().toString().slice(-6)}`,
-        name: `${newCustomer.first_name} ${newCustomer.last_name}`,
-        first_name: newCustomer.first_name,
-        last_name: newCustomer.last_name,
-        phone: newCustomer.phone || '',
-        email: newCustomer.email || '',
+        name: newCustomer.name,
+        phone: newCustomer.phone,
+        type: newCustomer.type || 'particulier',
         address: '',
-        city: '',
-        type: 'particulier',
-        statut: 'actif'
-      }, {
-        headers: { 'Authorization': `Token ${token}` }
-      });
+        statut: 'actif',
+        notes: ''
+      }, { headers: { 'Authorization': `Token ${token}` } });
 
       const createdCustomer = response.data;
-      setCustomers(prev => [...prev, createdCustomer]);
-      setFilteredCustomers(prev => [...prev, createdCustomer]);
+      setCustomers(prev => [createdCustomer, ...prev]);
+      setFilteredCustomers(prev => [createdCustomer, ...prev]);
       setSelectedCustomer(createdCustomer);
       setShowCustomerModal(false);
-      setNewCustomer({ first_name: '', last_name: '', phone: '', email: '' });
+      setNewCustomer({ name: '', phone: '', type: 'particulier' });
       setCustomerSearchTerm('');
-      showNotification(`Client ${createdCustomer.name} créé et sélectionné`, 'success');
+      showNotification(`Client ${createdCustomer.name} créé`, 'success');
     } catch (error) {
-      console.error('Erreur création client:', error);
-      let errorMsg = 'Erreur lors de la création du client';
+      console.error('❌ Erreur:', error);
+      let errorMsg = 'Erreur création client';
       if (error.response?.data) {
         const data = error.response.data;
         if (typeof data === 'string') errorMsg = data;
         else if (data.detail) errorMsg = data.detail;
-        else if (typeof data === 'object') {
-          const errors = [];
-          Object.entries(data).forEach(([key, value]) => {
-            if (Array.isArray(value)) errors.push(`${key}: ${value.join(', ')}`);
-            else if (typeof value === 'string') errors.push(`${key}: ${value}`);
-          });
-          if (errors.length > 0) errorMsg = errors.join('; ');
-        }
       }
       showNotification(errorMsg, 'error');
     } finally {
       setCreatingCustomer(false);
     }
-  }, [newCustomer]);
+  }, [newCustomer, showNotification]);
 
   // ============================================================
-  // 8. NOTIFICATION
-  // ============================================================
-  const showNotification = useCallback((message, type = 'success') => {
-    setNotification({ show: true, message, type });
-    const timer = setTimeout(() => {
-      setNotification({ show: false, message: '', type: 'success' });
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // ============================================================
-  // 9. FORMATAGE
+  // ✅ FORMATAGE
   // ============================================================
   const formatPrice = useCallback((price) => {
-    if (!price && price !== 0) return '0 FCFA';
-    return new Intl.NumberFormat('fr-FR').format(price) + ' FCFA';
+    const num = parseFloat(price) || 0;
+    return new Intl.NumberFormat('fr-FR').format(num) + ' FCFA';
   }, []);
 
   const getStatusBadge = useCallback((product) => {
     const stock = parseFloat(product.stock_quantity) || 0;
-
-    if (stock <= 0) {
-      return (
-        <div className="badge badge-error gap-1 text-xs">
-          <AlertTriangle className="w-3 h-3" />
-          Rupture
-        </div>
-      );
-    }
-
-    if (product.min_stock > 0 && stock <= product.min_stock) {
-      return (
-        <div className="badge badge-warning gap-1 text-xs">
-          <AlertCircle className="w-3 h-3" />
-          Stock faible
-        </div>
-      );
-    }
-
-    return (
-      <div className="badge badge-success gap-1 text-xs">
-        <CheckCircle className="w-3 h-3" />
-        En stock
-      </div>
-    );
+    if (stock <= 0) return <div className="badge badge-error gap-1 text-xs"><AlertTriangle className="w-3 h-3" /> Rupture</div>;
+    if (product.min_stock > 0 && stock <= product.min_stock) return <div className="badge badge-warning gap-1 text-xs"><AlertCircle className="w-3 h-3" /> Stock faible</div>;
+    return <div className="badge badge-success gap-1 text-xs"><CheckCircle className="w-3 h-3" /> En stock</div>;
   }, []);
 
   // ============================================================
-  // 10. RENDU
+  // ✅ RENDU
   // ============================================================
   if (loading && !isInitialized) {
     return (
@@ -787,14 +842,11 @@ const PosForm = () => {
     <div className="space-y-6 p-4 lg:p-6 bg-base-200 min-h-screen">
       {/* Notification */}
       {notification.show && (
-        <div className="fixed top-20 right-6 z-[999] animate-slideDown max-w-md">
+        <div className="fixed top-20 right-6 z-[999] max-w-md">
           <div className={`alert ${notification.type === 'success' ? 'alert-success' : 'alert-error'} shadow-lg`}>
             {notification.type === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
             <span>{notification.message}</span>
-            <button
-              className="btn btn-ghost btn-xs btn-circle"
-              onClick={() => setNotification({ show: false, message: '', type: 'success' })}
-            >
+            <button className="btn btn-ghost btn-xs btn-circle" onClick={() => setNotification({ show: false, message: '', type: 'success' })}>
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -809,10 +861,7 @@ const PosForm = () => {
               <h3 className="font-bold text-lg">Sélectionner un client</h3>
               <button
                 className="btn btn-ghost btn-sm btn-circle"
-                onClick={() => {
-                  setShowCustomerModal(false);
-                  setCustomerSearchTerm('');
-                }}
+                onClick={() => { setShowCustomerModal(false); setCustomerSearchTerm(''); }}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -824,136 +873,114 @@ const PosForm = () => {
                 <input
                   type="text"
                   className="input input-bordered w-full pl-10"
-                  placeholder="Rechercher par nom, téléphone, email..."
+                  placeholder="Rechercher par nom, téléphone, code..."
                   value={customerSearchTerm}
                   onChange={(e) => setCustomerSearchTerm(e.target.value)}
                   autoFocus
                 />
-                {customerSearchTerm && (
-                  <button
-                    className="absolute right-3 top-1/2 -translate-y-1/2 btn btn-ghost btn-xs btn-circle"
-                    onClick={() => setCustomerSearchTerm('')}
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
               </div>
-              {customerSearchTerm && (
-                <label className="label">
-                  <span className="label-text-alt text-base-content/50">
-                    {filteredCustomers.length} résultat(s) trouvé(s)
-                  </span>
-                </label>
-              )}
+              <label className="label">
+                <span className="label-text-alt text-base-content/50">
+                  {loadingCustomers ? 'Chargement...' : `${filteredCustomers.length} sur ${customerTotal} client(s)`}
+                </span>
+              </label>
             </div>
 
             <div className="max-h-60 overflow-y-auto space-y-2 mb-4">
-              {filteredCustomers.length === 0 ? (
+              {filteredCustomers.length === 0 && !loadingCustomers ? (
                 <div className="text-center py-8 text-base-content/50">
                   <User className="w-12 h-12 mx-auto mb-2 opacity-30" />
                   <p className="text-sm">Aucun client trouvé</p>
-                  {customerSearchTerm && (
-                    <p className="text-xs mt-1">pour "{customerSearchTerm}"</p>
-                  )}
                 </div>
               ) : (
-                filteredCustomers.map(customer => (
-                  <button
-                    key={customer.id}
-                    className={`w-full text-left p-3 rounded-lg hover:bg-base-200 flex items-center gap-3 transition-colors ${
-                      selectedCustomer?.id === customer.id ? 'bg-primary/10 border border-primary/30' : ''
-                    }`}
-                    onClick={() => {
-                      setSelectedCustomer(customer);
-                      setShowCustomerModal(false);
-                      setCustomerSearchTerm('');
-                      showNotification(`Client ${customer.name} sélectionné`, 'success');
-                    }}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <User className="w-5 h-5 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{customer.name}</div>
-                      <div className="text-xs text-base-content/60 truncate">
-                        {customer.phone || customer.email || 'Aucun contact'}
+                <>
+                  {filteredCustomers.map(customer => (
+                    <button
+                      key={customer.id}
+                      className={`w-full text-left p-3 rounded-lg hover:bg-base-200 flex items-center gap-3 ${
+                        selectedCustomer?.id === customer.id ? 'bg-primary/10 border border-primary/30' : ''
+                      }`}
+                      onClick={() => {
+                        setSelectedCustomer(customer);
+                        setShowCustomerModal(false);
+                        setCustomerSearchTerm('');
+                        showNotification(`Client ${customer.name} sélectionné`, 'success');
+                      }}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <User className="w-5 h-5 text-primary" />
                       </div>
-                    </div>
-                    {selectedCustomer?.id === customer.id && (
-                      <Check className="w-5 h-5 text-primary flex-shrink-0" />
-                    )}
-                  </button>
-                ))
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{customer.name}</div>
+                        <div className="text-xs text-base-content/60 truncate">
+                          {customer.phone || customer.code || 'Aucun contact'}
+                        </div>
+                      </div>
+                      {selectedCustomer?.id === customer.id && (
+                        <Check className="w-5 h-5 text-primary flex-shrink-0" />
+                      )}
+                    </button>
+                  ))}
+
+                  {customerHasMore && (
+                    <button
+                      className="btn btn-outline btn-sm w-full"
+                      onClick={loadMoreCustomers}
+                      disabled={loadingCustomers}
+                    >
+                      {loadingCustomers ? (
+                        <><Loader className="w-4 h-4 animate-spin" /> Chargement...</>
+                      ) : (
+                        <>Charger plus ({customerTotal - filteredCustomers.length} restant)</>
+                      )}
+                    </button>
+                  )}
+                </>
               )}
             </div>
 
             <div className="divider text-xs text-base-content/50">Créer un nouveau client</div>
 
-            <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="space-y-2 mb-3">
               <input
                 type="text"
-                className="input input-bordered input-sm"
-                placeholder="Prénom *"
-                value={newCustomer.first_name}
-                onChange={(e) => setNewCustomer({ ...newCustomer, first_name: e.target.value })}
+                className="input input-bordered input-sm w-full"
+                placeholder="Nom / Raison sociale *"
+                value={newCustomer.name}
+                onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
               />
               <input
                 type="text"
-                className="input input-bordered input-sm"
-                placeholder="Nom *"
-                value={newCustomer.last_name}
-                onChange={(e) => setNewCustomer({ ...newCustomer, last_name: e.target.value })}
-              />
-              <input
-                type="text"
-                className="input input-bordered input-sm col-span-2"
-                placeholder="Téléphone"
+                className="input input-bordered input-sm w-full"
+                placeholder="Téléphone *"
                 value={newCustomer.phone}
                 onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
               />
-              <input
-                type="email"
-                className="input input-bordered input-sm col-span-2"
-                placeholder="Email"
-                value={newCustomer.email}
-                onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
-              />
+              <select
+                className="select select-bordered select-sm w-full"
+                value={newCustomer.type}
+                onChange={(e) => setNewCustomer({ ...newCustomer, type: e.target.value })}
+              >
+                <option value="particulier">Particulier</option>
+                <option value="entreprise">Entreprise</option>
+                <option value="revendeur">Revendeur</option>
+                <option value="grossiste">Grossiste</option>
+              </select>
             </div>
 
             <div className="modal-action">
               <button
                 className="btn btn-ghost"
-                onClick={() => {
-                  setShowCustomerModal(false);
-                  setCustomerSearchTerm('');
-                }}
+                onClick={() => { setShowCustomerModal(false); setCustomerSearchTerm(''); }}
               >
                 Fermer
               </button>
-              {selectedCustomer && (
-                <button
-                  className="btn btn-error btn-outline gap-2"
-                  onClick={() => {
-                    setSelectedCustomer(null);
-                    setShowCustomerModal(false);
-                    setCustomerSearchTerm('');
-                    showNotification('Client retiré', 'success');
-                  }}
-                >
-                  <X className="w-4 h-4" />
-                  Retirer
-                </button>
-              )}
               <button
                 className="btn btn-primary gap-2"
                 onClick={handleCreateCustomer}
-                disabled={creatingCustomer || !newCustomer.first_name || !newCustomer.last_name}
+                disabled={creatingCustomer || !newCustomer.name || !newCustomer.phone}
               >
-                {creatingCustomer ? (
-                  <Loader className="w-4 h-4 animate-spin" />
-                ) : (
-                  <User className="w-4 h-4" />
-                )}
+                {creatingCustomer ? <Loader className="w-4 h-4 animate-spin" /> : <User className="w-4 h-4" />}
                 {creatingCustomer ? 'Création...' : 'Créer le client'}
               </button>
             </div>
@@ -964,14 +991,15 @@ const PosForm = () => {
       {/* En-tête */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-base-100 rounded-xl shadow-md border border-base-300 p-4">
         <div>
-          <h1 className="text-3xl lg:text-4xl font-black text-base-content bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+          <h1 className="text-3xl lg:text-4xl font-black bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
             Point de Vente
           </h1>
-          <p className="text-sm text-base-content/60">Vente rapide - Scannez les produits</p>
+          <p className="text-sm text-base-content/60">
+            {productTotal} produits • {customerTotal} clients
+          </p>
         </div>
-
         <div className="flex flex-wrap gap-3">
-          <button onClick={fetchData} className="btn btn-outline gap-2" disabled={loading}>
+          <button onClick={fetchInitialData} className="btn btn-outline gap-2" disabled={loading}>
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Actualiser
           </button>
@@ -981,7 +1009,7 @@ const PosForm = () => {
         </div>
       </div>
 
-      {/* SCANNER DE CODE-BARRES + SÉLECTEUR PRIX */}
+      {/* Scanner + Sélecteur prix */}
       <div className="bg-base-100 rounded-xl shadow-md border border-base-300 p-4 lg:p-6">
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="flex-1">
@@ -993,7 +1021,7 @@ const PosForm = () => {
                 ref={barcodeInputRef}
                 type="text"
                 placeholder="Scanner un code-barres ici..."
-                className="input input-bordered w-full pl-12 text-lg font-mono bg-base-200 border-2 border-primary/30 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all h-14"
+                className="input input-bordered w-full pl-12 text-lg font-mono bg-base-200 border-2 border-primary/30 h-14"
                 value={barcodeValue}
                 onChange={handleBarcodeScan}
                 onKeyDown={handleBarcodeKeyDown}
@@ -1002,29 +1030,12 @@ const PosForm = () => {
                 autoFocus
                 disabled={loading}
               />
-              {barcodeValue.length > 0 && (
-                <button
-                  className="absolute right-3 top-1/2 -translate-y-1/2 btn btn-ghost btn-xs btn-circle"
-                  onClick={() => {
-                    setBarcodeValue('');
-                    if (barcodeInputRef.current) {
-                      barcodeInputRef.current.value = '';
-                      barcodeInputRef.current.focus();
-                    }
-                  }}
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-base-content/50">
               <span className="flex items-center gap-1">
                 <span className={`w-2 h-2 rounded-full ${isBarcodeFocused ? 'bg-success animate-pulse' : 'bg-base-content/20'}`}></span>
-                {isBarcodeFocused ? 'Prêt à scanner' : 'Cliquez pour scanner'}
+                {isBarcodeFocused ? 'Prêt' : 'Cliquez pour scanner'}
               </span>
-              <span className="badge badge-ghost">Support lecteurs USB</span>
-              <span className="badge badge-ghost">Entrée pour valider</span>
-              <span className="badge badge-primary">Scan multiple autorisé</span>
             </div>
           </div>
 
@@ -1032,45 +1043,23 @@ const PosForm = () => {
             <div className="flex rounded-lg border border-gray-200 overflow-hidden">
               <button
                 type="button"
-                className={`px-4 py-2 text-sm font-medium transition-colors flex items-center gap-1 ${
-                  priceType === 'detail'
-                    ? 'bg-primary text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-100'
-                }`}
+                className={`px-4 py-2 text-sm font-medium ${priceType === 'detail' ? 'bg-primary text-white' : 'bg-white text-gray-600'}`}
                 onClick={() => setPriceType('detail')}
               >
-                <Tag className="w-4 h-4" />
-                Détail
+                <Tag className="w-4 h-4" /> Détail
               </button>
-
-              {/* ✅ BOUTON GROS - AFFICHÉ UNIQUEMENT SI AU MOINS UN PRODUIT A UN PRIX DE GROS */}
               {hasWholesaleProducts ? (
                 <button
                   type="button"
-                  className={`px-4 py-2 text-sm font-medium transition-colors flex items-center gap-1 ${
-                    priceType === 'gros'
-                      ? 'bg-primary text-white'
-                      : 'bg-white text-gray-600 hover:bg-gray-100'
-                  }`}
+                  className={`px-4 py-2 text-sm font-medium ${priceType === 'gros' ? 'bg-primary text-white' : 'bg-white text-gray-600'}`}
                   onClick={() => setPriceType('gros')}
-                  title={`${wholesaleProductsCount} produit(s) avec prix de gros`}
                 >
-                  <Layers className="w-4 h-4" />
-                  Gros
-                  <span className="badge badge-xs badge-primary ml-1">
-                    {wholesaleProductsCount}
-                  </span>
+                  <Layers className="w-4 h-4" /> Gros
+                  <span className="badge badge-xs badge-primary ml-1">{wholesaleProductsCount}</span>
                 </button>
               ) : (
-                <button
-                  type="button"
-                  disabled
-                  className="px-4 py-2 text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed flex items-center gap-1"
-                  title="Aucun produit n'a de prix de gros défini"
-                >
-                  <Layers className="w-4 h-4" />
-                  Gros
-                  <span className="text-[10px] ml-1">(indispo)</span>
+                <button type="button" disabled className="px-4 py-2 text-sm bg-gray-100 text-gray-400">
+                  <Layers className="w-4 h-4" /> Gros (indispo)
                 </button>
               )}
             </div>
@@ -1078,7 +1067,7 @@ const PosForm = () => {
         </div>
       </div>
 
-      {/* Sélection entrepôt et client */}
+      {/* Entrepôt + Client */}
       <div className="bg-base-100 rounded-xl shadow-md border border-base-300 p-4 lg:p-6">
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="flex-1 flex items-center gap-3">
@@ -1094,14 +1083,9 @@ const PosForm = () => {
             >
               <option value="">Sélectionner un entrepôt</option>
               {warehouses.map(w => (
-                <option key={w.id} value={w.id}>
-                  {w.name} ({w.code})
-                </option>
+                <option key={w.id} value={w.id}>{w.name} ({w.code})</option>
               ))}
             </select>
-            {!selectedWarehouse && !loading && (
-              <span className="text-xs text-error">Entrepôt requis</span>
-            )}
           </div>
 
           <div className="flex-1 flex items-center gap-3">
@@ -1111,17 +1095,10 @@ const PosForm = () => {
               onClick={() => setShowCustomerModal(true)}
               disabled={loading}
             >
-              {selectedCustomer ? (
-                <span>{selectedCustomer.name}</span>
-              ) : (
-                'Client anonyme'
-              )}
+              {selectedCustomer ? selectedCustomer.name : 'Client anonyme'}
             </button>
             {selectedCustomer && (
-              <button
-                className="btn btn-ghost btn-sm"
-                onClick={() => setSelectedCustomer(null)}
-              >
+              <button className="btn btn-ghost btn-sm" onClick={() => setSelectedCustomer(null)}>
                 <X className="w-4 h-4" />
               </button>
             )}
@@ -1129,7 +1106,7 @@ const PosForm = () => {
         </div>
       </div>
 
-      {/* Filtres et recherche */}
+      {/* Filtres - ✅ AJOUT du bouton "Voir tous les produits" */}
       <div className="bg-base-100 rounded-xl shadow-md border border-base-300 p-4 lg:p-6">
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="flex-1">
@@ -1138,25 +1115,37 @@ const PosForm = () => {
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Rechercher par nom, code, code-barres..."
-                className="input input-bordered w-full pl-12"
+                placeholder="Rechercher dans TOUS les produits (nom, code, code-barres)..."
+                className="input input-bordered w-full pl-12 pr-12"
                 value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setCurrentPage(1);
-                }}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
+              {isSearching && (
+                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                  <Loader className="w-4 h-4 text-primary animate-spin" />
+                </div>
+              )}
+              {!isSearching && searchTerm && (
+                <button
+                  className="absolute right-3 top-1/2 -translate-y-1/2 btn btn-ghost btn-xs btn-circle"
+                  onClick={() => setSearchTerm('')}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
             </div>
+            {searchTerm && (
+              <p className="text-xs text-base-content/60 mt-1">
+                {isSearching ? '⏳ Recherche en cours...' : `✅ ${productTotal} résultat(s) trouvé(s) dans la base`}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap gap-3">
             <select
               className="select select-bordered min-w-[150px]"
               value={selectedCategory}
-              onChange={(e) => {
-                setSelectedCategory(e.target.value);
-                setCurrentPage(1);
-              }}
+              onChange={(e) => setSelectedCategory(e.target.value)}
             >
               <option value="">Toutes catégories</option>
               {categories.map(cat => (
@@ -1169,45 +1158,52 @@ const PosForm = () => {
               value={sortField}
               onChange={(e) => setSortField(e.target.value)}
             >
-              <option value="name">Trier par nom</option>
-              <option value="selling_price">Trier par prix détail</option>
-              {hasWholesaleProducts && (
-                <option value="wholesale_price">Trier par prix gros</option>
-              )}
-              <option value="stock_quantity">Trier par stock</option>
+              <option value="name">Nom</option>
+              <option value="selling_price">Prix détail</option>
+              <option value="stock_quantity">Stock</option>
             </select>
 
             <button
               className="btn btn-ghost"
               onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
-              title={`Tri ${sortDirection === 'asc' ? 'croissant' : 'décroissant'}`}
             >
               <ArrowUpDown className="w-4 h-4" />
             </button>
 
             <button
               className="btn btn-outline"
-              onClick={() => {
-                setSelectedCategory('');
-                setSearchTerm('');
-                setCurrentPage(1);
-              }}
+              onClick={() => { setSelectedCategory(''); setSearchTerm(''); }}
             >
-              <Filter className="w-4 h-4" />
-              Réinitialiser
+              <Filter className="w-4 h-4" /> Réinitialiser
             </button>
 
-            <div className="join">
+            {/* ✅ NOUVEAU : Bouton "Voir tous les produits" */}
+            {!allProductsLoaded && productHasMore && (
               <button
-                className={`join-item btn ${viewMode === 'grid' ? 'btn-primary' : 'btn-ghost'}`}
-                onClick={() => setViewMode('grid')}
+                className="btn btn-secondary gap-2"
+                onClick={loadAllProducts}
+                disabled={loadingAll}
+                title="Charger TOUS les produits d'un coup"
               >
+                {loadingAll ? (
+                  <><Loader className="w-4 h-4 animate-spin" /> Chargement...</>
+                ) : (
+                  <><Package className="w-4 h-4" /> Voir tous les produits</>
+                )}
+              </button>
+            )}
+
+            {allProductsLoaded && (
+              <span className="badge badge-success gap-1">
+                <CheckCircle className="w-3 h-3" /> Tous chargés
+              </span>
+            )}
+
+            <div className="join">
+              <button className={`join-item btn ${viewMode === 'grid' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setViewMode('grid')}>
                 <LayoutGrid className="w-4 h-4" />
               </button>
-              <button
-                className={`join-item btn ${viewMode === 'list' ? 'btn-primary' : 'btn-ghost'}`}
-                onClick={() => setViewMode('list')}
-              >
+              <button className={`join-item btn ${viewMode === 'list' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setViewMode('list')}>
                 <List className="w-4 h-4" />
               </button>
             </div>
@@ -1215,112 +1211,62 @@ const PosForm = () => {
         </div>
       </div>
 
-      {/* Contenu principal - Panier et produits */}
+      {/* Contenu principal */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Produits */}
         <div className="lg:col-span-3 bg-base-100 rounded-xl shadow-xl border border-base-300 overflow-hidden">
           <div className="p-3 bg-base-200 border-b border-base-300 flex items-center justify-between flex-wrap gap-2">
             <span className="text-sm font-medium">
-              <Tag className="w-4 h-4 inline mr-2 text-primary" />
-              Prix affiché : <strong>{priceType === 'gros' ? 'Gros' : 'Détail'}</strong>
+              Prix : <strong>{priceType === 'gros' ? 'Gros' : 'Détail'}</strong>
               <span className="ml-4 text-xs text-base-content/40">
-                ({sortedProducts.length} produits disponibles)
+                ({sortedProducts.length} affichés sur {productTotal})
               </span>
             </span>
-            <span className="text-xs text-base-content/60">
-              <Barcode className="w-3 h-3 inline mr-1" />
-              Scan rapide avec le champ ci-dessus
-            </span>
+            {!allProductsLoaded && productHasMore && (
+              <span className="text-xs text-warning">
+                ⚠️ Cliquez sur "Voir tous les produits" pour tout charger
+              </span>
+            )}
           </div>
 
           {paginatedProducts.length === 0 ? (
             <div className="p-12 text-center">
               <Package className="w-20 h-20 mx-auto mb-4 text-base-content/20" />
-              <p className="text-base-content/60 text-lg">Aucun produit trouvé</p>
-              <button
-                className="btn btn-primary mt-4"
-                onClick={() => {
-                  setSearchTerm('');
-                  setSelectedCategory('');
-                  if (barcodeInputRef.current) {
-                    barcodeInputRef.current.focus();
-                  }
-                }}
-              >
-                Voir tous les produits
-              </button>
+              <p className="text-base-content/60 text-lg">
+                {searchTerm ? 'Aucun produit ne correspond à votre recherche' : 'Aucun produit trouvé'}
+              </p>
+              {searchTerm && (
+                <p className="text-sm text-base-content/40 mt-2">
+                  Essayez avec un autre terme ou vérifiez l'orthographe
+                </p>
+              )}
             </div>
           ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 p-4">
               {paginatedProducts.map(product => (
                 <div
                   key={product.id}
-                  className="card bg-base-200 hover:shadow-lg transition-all duration-200 cursor-pointer border border-transparent hover:border-primary/30"
+                  className="card bg-base-200 hover:shadow-lg cursor-pointer border border-transparent hover:border-primary/30"
                   onClick={() => addToCart(product)}
                 >
                   <div className="card-body p-3 text-center">
-                    <div className="w-full h-24 bg-base-300 rounded-lg flex items-center justify-center mb-2 overflow-hidden relative">
+                    <div className="w-full h-24 bg-base-300 rounded-lg flex items-center justify-center mb-2 overflow-hidden">
                       {product.image_url ? (
-                        <img
-                          src={product.image_url}
-                          alt={product.name}
-                          className="h-full w-full object-contain"
-                          loading="lazy"
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                          }}
-                        />
+                        <img src={product.image_url} alt={product.name} className="h-full w-full object-contain" loading="lazy" onError={(e) => { e.target.style.display = 'none'; }} />
                       ) : (
                         <Package className="w-12 h-12 text-base-content/30" />
                       )}
-                      {product.barcode && (
-                        <div className="absolute top-1 right-1 bg-primary/80 text-white text-[8px] px-1 rounded">
-                          <Barcode className="w-3 h-3 inline" />
-                        </div>
-                      )}
                     </div>
-                    <div className="font-medium text-sm truncate" title={product.name}>{product.name}</div>
+                    <div className="font-medium text-sm truncate">{product.name}</div>
                     <div className="text-xs text-base-content/40 truncate">{product.code}</div>
-
-                    {/* Prix détail + prix gros */}
-                    <div className="text-xs text-base-content/50 flex flex-wrap justify-center gap-1">
-                      <span className={priceType === 'detail' ? 'font-bold text-primary' : ''}>
-                        Détail: {formatPrice(product.selling_price)}
-                      </span>
-                      {product.wholesale_price > 0 && (
-                        <span className={priceType === 'gros' ? 'font-bold text-primary' : ''}>
-                          Gros: {formatPrice(product.wholesale_price)}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="text-lg font-bold text-primary">
-                      {formatPrice(product.display_price)}
-                    </div>
-
-                    {/* Badge prix gros dispo */}
-                    <div className="flex justify-center mt-1">
-                      {product.wholesale_price > 0 ? (
-                        <span className="badge badge-xs badge-primary gap-1">
-                          <Layers className="w-2 h-2" /> Gros dispo
-                        </span>
-                      ) : (
-                        <span className="badge badge-xs badge-ghost gap-1 text-base-content/40">
-                          Détail uniquement
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
+                    <div className="text-lg font-bold text-primary">{formatPrice(product.display_price)}</div>
+                    <div className="flex items-center justify-center gap-2 mt-1">
                       {getStatusBadge(product)}
-                      <span className="text-xs text-base-content/40">{product.stock_quantity} unités</span>
+                      <span className="text-xs">{product.stock_quantity} u.</span>
                     </div>
                     <button
                       className="btn btn-primary btn-sm w-full mt-2 gap-1"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        addToCart(product);
-                      }}
+                      onClick={(e) => { e.stopPropagation(); addToCart(product); }}
                       disabled={product.stock_quantity <= 0}
                     >
                       <Plus className="w-3 h-3" /> Ajouter
@@ -1336,11 +1282,9 @@ const PosForm = () => {
                   <tr>
                     <th>Produit</th>
                     <th>Code</th>
-                    <th>Code-barres</th>
                     <th>Prix détail</th>
                     <th>Prix gros</th>
                     <th>Stock</th>
-                    <th>Statut</th>
                     <th>Action</th>
                   </tr>
                 </thead>
@@ -1349,17 +1293,9 @@ const PosForm = () => {
                     <tr key={product.id}>
                       <td>
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-base-300 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+                          <div className="w-10 h-10 bg-base-300 rounded-lg flex items-center justify-center">
                             {product.image_url ? (
-                              <img
-                                src={product.image_url}
-                                alt={product.name}
-                                className="h-full w-full object-contain"
-                                loading="lazy"
-                                onError={(e) => {
-                                  e.target.style.display = 'none';
-                                }}
-                              />
+                              <img src={product.image_url} alt={product.name} className="h-full w-full object-contain" loading="lazy" />
                             ) : (
                               <Package className="w-6 h-6 text-base-content/30" />
                             )}
@@ -1368,31 +1304,13 @@ const PosForm = () => {
                         </div>
                       </td>
                       <td>{product.code}</td>
-                      <td>
-                        {product.barcode ? (
-                          <span className="badge badge-ghost gap-1 text-xs font-mono">
-                            <Barcode className="w-3 h-3" /> {product.barcode}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-base-content/30">-</span>
-                        )}
-                      </td>
                       <td className="font-semibold">{formatPrice(product.selling_price)}</td>
                       <td className="font-semibold text-primary">
-                        {product.wholesale_price > 0 ? (
-                          formatPrice(product.wholesale_price)
-                        ) : (
-                          <span className="text-base-content/30 text-xs">Non défini</span>
-                        )}
+                        {product.wholesale_price > 0 ? formatPrice(product.wholesale_price) : <span className="text-xs">-</span>}
                       </td>
                       <td>{product.stock_quantity}</td>
-                      <td>{getStatusBadge(product)}</td>
                       <td>
-                        <button
-                          className="btn btn-primary btn-sm gap-1"
-                          onClick={() => addToCart(product)}
-                          disabled={product.stock_quantity <= 0}
-                        >
+                        <button className="btn btn-primary btn-sm gap-1" onClick={() => addToCart(product)} disabled={product.stock_quantity <= 0}>
                           <Plus className="w-3 h-3" /> Ajouter
                         </button>
                       </td>
@@ -1403,48 +1321,46 @@ const PosForm = () => {
             </div>
           )}
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-t border-base-300">
-              <div className="text-sm text-base-content/60">
-                Affichage de {((currentPage - 1) * itemsPerPage) + 1} à {Math.min(currentPage * itemsPerPage, sortedProducts.length)} sur {sortedProducts.length}
-              </div>
-              <div className="join">
-                <button
-                  className="join-item btn btn-sm"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <span className="join-item btn btn-sm btn-disabled">
-                  {currentPage} / {totalPages}
-                </span>
-                <button
-                  className="join-item btn btn-sm"
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-              <div>
-                <select
-                  className="select select-bordered select-sm"
-                  value={itemsPerPage}
-                  onChange={(e) => {
-                    setItemsPerPage(parseInt(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                >
-                  <option value="8">8</option>
-                  <option value="12">12</option>
-                  <option value="24">24</option>
-                  <option value="48">48</option>
-                </select>
-              </div>
+          {/* Pagination + Load More */}
+          <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-t border-base-300">
+            <div className="text-sm text-base-content/60">
+              {sortedProducts.length} produit(s) affiché(s) sur {productTotal}
             </div>
-          )}
+            <div className="flex items-center gap-2">
+              {totalPages > 1 && (
+                <div className="join">
+                  <button className="join-item btn btn-sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="join-item btn btn-sm btn-disabled">{currentPage} / {totalPages}</span>
+                  <button className="join-item btn btn-sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* ✅ Bouton Charger plus (désactivé si "Tous" chargés) */}
+              {productHasMore && !allProductsLoaded && (
+                <button
+                  className="btn btn-outline btn-sm gap-2"
+                  onClick={loadMoreProducts}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? (
+                    <><Loader className="w-4 h-4 animate-spin" /> Chargement...</>
+                  ) : (
+                    <>Charger plus ({productTotal - products.length} restants)</>
+                  )}
+                </button>
+              )}
+
+              {allProductsLoaded && (
+                <span className="badge badge-success gap-1">
+                  <CheckCircle className="w-3 h-3" /> Tous les produits sont chargés
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Panier */}
@@ -1456,11 +1372,7 @@ const PosForm = () => {
                 Panier
                 <span className="badge badge-primary badge-sm">{cart.length}</span>
               </h2>
-              <button
-                className="btn btn-ghost btn-sm text-error"
-                onClick={clearCart}
-                disabled={cart.length === 0}
-              >
+              <button className="btn btn-ghost btn-sm text-error" onClick={clearCart} disabled={cart.length === 0}>
                 <Trash2 className="w-4 h-4" /> Vider
               </button>
             </div>
@@ -1473,34 +1385,26 @@ const PosForm = () => {
                       <ShoppingCart className="w-10 h-10 text-base-content/20" />
                     </div>
                   </div>
-                  <p className="text-base-content/40 text-base">Panier vide</p>
-                  <p className="text-xs text-base-content/30 mt-1">Scannez un produit ou ajoutez-le manuellement</p>
+                  <p className="text-base-content/40">Panier vide</p>
                 </div>
               ) : (
                 cart.map((item, index) => (
-                  <div key={item.id} className="bg-base-200 rounded-lg p-3 border border-base-300/50 hover:border-primary/30 transition-all">
+                  <div key={item.id} className="bg-base-200 rounded-lg p-3 border border-base-300/50">
                     <div className="flex justify-between items-start">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1">
                           <span className="text-xs text-base-content/40 font-mono">#{index + 1}</span>
                           <div className="font-medium text-sm truncate flex-1">{item.product.name}</div>
                         </div>
-                        <div className="text-xs text-base-content/40 truncate">{item.product.code}</div>
                         <div className="text-xs flex items-center gap-2 flex-wrap mt-1">
                           <span className={`badge ${item.price_type === 'gros' ? 'badge-primary' : 'badge-ghost'} text-[10px]`}>
                             {item.price_type === 'gros' ? 'Gros' : 'Détail'}
                           </span>
-                          <span className="font-semibold text-primary text-xs">
-                            {formatPrice(item.unit_price)}/u
-                          </span>
+                          <span className="font-semibold text-primary text-xs">{formatPrice(item.unit_price)}/u</span>
                         </div>
 
                         <div className="flex items-center gap-2 mt-2">
-                          <button
-                            className="btn btn-ghost btn-xs btn-circle"
-                            onClick={() => updateCartQuantity(item.id, -1)}
-                            disabled={item.quantity <= 1}
-                          >
+                          <button className="btn btn-ghost btn-xs btn-circle" onClick={() => updateCartQuantity(item.id, -1)} disabled={item.quantity <= 1}>
                             <Minus className="w-3 h-3" />
                           </button>
 
@@ -1515,39 +1419,24 @@ const PosForm = () => {
                               onChange={(e) => setQuantityInput(e.target.value)}
                               onKeyDown={(e) => handleQuantityKeyDown(e, item.id)}
                               onBlur={() => {
-                                if (quantityInput) {
-                                  updateCartQuantityDirect(item.id, quantityInput);
-                                } else {
-                                  setEditingQuantity(null);
-                                  setQuantityInput('');
-                                }
+                                if (quantityInput) updateCartQuantityDirect(item.id, quantityInput);
+                                else { setEditingQuantity(null); setQuantityInput(''); }
                               }}
                             />
                           ) : (
-                            <span
-                              className="font-bold w-10 text-center text-sm cursor-pointer hover:text-primary transition-colors"
-                              onClick={() => startQuantityEdit(item.id, item.quantity)}
-                              title="Cliquer pour modifier"
-                            >
+                            <span className="font-bold w-10 text-center text-sm cursor-pointer hover:text-primary" onClick={() => startQuantityEdit(item.id, item.quantity)}>
                               {item.quantity}
                             </span>
                           )}
 
-                          <button
-                            className="btn btn-ghost btn-xs btn-circle"
-                            onClick={() => updateCartQuantity(item.id, 1)}
-                            disabled={item.quantity >= item.product.stock_quantity}
-                          >
+                          <button className="btn btn-ghost btn-xs btn-circle" onClick={() => updateCartQuantity(item.id, 1)} disabled={item.quantity >= item.product.stock_quantity}>
                             <Plus className="w-3 h-3" />
                           </button>
                         </div>
                       </div>
                       <div className="text-right ml-2 flex-shrink-0">
                         <div className="font-bold text-primary text-sm">{formatPrice(item.total)}</div>
-                        <button
-                          className="btn btn-ghost btn-xs text-error"
-                          onClick={() => removeCartItem(item.id)}
-                        >
+                        <button className="btn btn-ghost btn-xs text-error" onClick={() => removeCartItem(item.id)}>
                           <X className="w-3 h-3" />
                         </button>
                       </div>
@@ -1560,12 +1449,8 @@ const PosForm = () => {
             <div className="border-t border-base-300 pt-4 mt-4 flex-shrink-0">
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-base-content/60">Sous-total</span>
+                  <span>Sous-total</span>
                   <span className="font-semibold">{formatPrice(totals.subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-base-content/60">TVA (0%)</span>
-                  <span>{formatPrice(totals.tax_amount)}</span>
                 </div>
                 <div className="flex justify-between text-xl font-bold text-primary border-t border-base-300 pt-2">
                   <span>Total</span>
@@ -1574,21 +1459,12 @@ const PosForm = () => {
               </div>
 
               <button
-                ref={validateButtonRef}
                 type="button"
                 className="btn btn-primary w-full mt-4 h-14 text-lg gap-2"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  validateSale();
-                }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); validateSale(); }}
                 disabled={cart.length === 0 || !selectedWarehouse || submitting || loading}
               >
-                {submitting ? (
-                  <Loader className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Save className="w-5 h-5" />
-                )}
+                {submitting ? <Loader className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                 {submitting ? 'Enregistrement...' : `Valider ${formatPrice(totals.total)}`}
               </button>
 
@@ -1601,26 +1477,21 @@ const PosForm = () => {
                 <User className="w-4 h-4" />
                 {selectedCustomer ? 'Changer de client' : 'Ajouter un client'}
               </button>
-
-              <div className="mt-2 flex items-center justify-center gap-2 text-xs text-base-content/30">
-                <div className={`w-2 h-2 rounded-full ${isBarcodeFocused ? 'bg-success animate-pulse' : 'bg-base-content/20'}`}></div>
-                <span>{isBarcodeFocused ? 'Prêt à scanner' : 'Cliquez sur le champ de scan'}</span>
-              </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Raccourcis clavier */}
-      <div className="fixed bottom-4 right-4 bg-base-100/90 backdrop-blur rounded-2xl shadow-lg p-3 text-xs text-base-content/60 border border-base-300 hidden lg:block">
-        <div className="flex items-center gap-4">
-          <span><kbd className="px-2 py-1 bg-base-200 rounded">Barcode</kbd> Scan automatique</span>
-          <span><kbd className="px-2 py-1 bg-base-200 rounded">Esc</kbd> Fermer</span>
-          <span><kbd className="px-2 py-1 bg-base-200 rounded">Click quantité</kbd> Modifier</span>
         </div>
       </div>
     </div>
   );
 };
+
+// ============================================================
+// WRAPPER
+// ============================================================
+const PosForm = () => (
+  <ErrorBoundary>
+    <PosFormContent />
+  </ErrorBoundary>
+);
 
 export default PosForm;

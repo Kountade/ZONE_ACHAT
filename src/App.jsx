@@ -1,4 +1,4 @@
-// App.jsx - Version avec Site Web + ERP Scolaire (CORRIGÉE)
+// App.jsx - Version avec Site Web + ERP Scolaire (SANS DOUBLONS)
 import './App.css';
 import { Routes, Route, useLocation } from 'react-router-dom';
 
@@ -25,10 +25,9 @@ import PasswordReset from './components/auth/PasswordReset';
 // ============ COMPOSANTS ERP ADMIN ============
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/common/ProtectedRoutes';
-
 import EtablissementSettings from './components/settings/EtablissementSettings';
 
-// ============ Modules Logistique/Catégories ============
+// ============ Modules Logistique / Catégories ============
 import Categories from './components/logistique/Categories';
 import CategoryForm from './components/logistique/CategoryForm';
 import CategoryDetails from './components/logistique/CategoryDetails';
@@ -45,7 +44,6 @@ import StocksList from './components/logistique/StocksList';
 import LotsList from './components/logistique/LotsList';
 import AddStockManual from './components/inventaire/AddStockManual';
 import MouvementsStock from './components/logistique/MouvementsStock';
-
 import EntrepotForm from './components/logistique/EntrepotForm';
 import Entrepots from './components/logistique/Entrepots';
 import EntrepotDetails from './components/logistique/EntrepotDetails';
@@ -53,16 +51,16 @@ import Transferts from './components/logistique/Transferts';
 import TransfertForm from './components/logistique/TransfertForm';
 import TransfertDetails from './components/logistique/TransfertDetails';
 
-// ============ Modules Fournisseurs ============
+// ============ Modules Achats / Fournisseurs ============
 import FournisseursList from './components/achatsfournisseurs/FournisseursList';
 import FournisseursForm from './components/achatsfournisseurs/FournisseursForm';
 import FournisseursDetails from './components/achatsfournisseurs/FournisseursDetails';
 
-// ============ Modules Commandes ============
 import CommandesList from './components/achatsfournisseurs/CommandesList';
 import CommandeForm from './components/achatsfournisseurs/CommandeForm';
 import CommandeDetails from './components/achatsfournisseurs/CommandeDetails';
 import CommandePdf from './components/achatsfournisseurs/CommandePdf';
+
 import ReceptionsList from './components/achatsfournisseurs/ReceptionsList';
 import ReceptionForm from './components/achatsfournisseurs/ReceptionForm';
 import ReceptionDetails from './components/achatsfournisseurs/ReceptionDetails';
@@ -75,13 +73,13 @@ import PaiementFournisseurDetail from './components/achatsfournisseurs/PaiementF
 import PaiementsFournisseursList from './components/achatsfournisseurs/PaiementsFournisseursList';
 import PaiementFournisseurForm from './components/achatsfournisseurs/PaiementFournisseurForm';
 import PurchaseAlerts from './components/achatsfournisseurs/PurchaseAlerts';
-
 import PurchaseReturnsList from './components/achatsfournisseurs/PurchaseReturnsList';
 import PurchaseReturnForm from './components/achatsfournisseurs/PurchaseReturnForm';
 import PurchaseReturnDetail from './components/achatsfournisseurs/PurchaseReturnDetail';
 import PurchaseReturnPdf from './components/achatsfournisseurs/PurchaseReturnPdf';
+import DashboardAchats from './components/achatsfournisseurs/DashboardAchats';
 
-// ============ Modules Ventes/Clients ============
+// ============ Modules Ventes / Clients ============
 import ClientsList from './components/ventesclients/ClientsList';
 import ClientForm from './components/ventesclients/ClientForm';
 import ClientDetail from './components/ventesclients/ClientDetail';
@@ -118,88 +116,37 @@ import PosForm from './components/ventesclients/PosForm';
 import CaissesForm from './components/tresorerie/CaissesForm';
 import CaissesList from './components/tresorerie/CaissesList';
 import CaissesDetail from './components/tresorerie/CaissesDetail';
-
 import ComptesBancairesList from './components/tresorerie/ComptesBancairesList';
 import CompteBancaireForm from './components/tresorerie/ComptesBancairesForm';
 import CompteBancaireDetail from './components/tresorerie/CompteBancaireDetail';
-
 import DashboardTresorerie from './components/tresorerie/DashboardTresorerie';
-
-import PrevisionsList from './components/tresorerie/PrevisionsList';
-import PrevisionsForm from './components/tresorerie/PrevisionsForm';
-import PrevisionsDetail from './components/tresorerie/PrevisionsDetail';
-import TresorerieJournaliere from './components/tresorerie/TresorerieJournaliere';
-import TresorerieJournaliereDetail from './components/tresorerie/TresorerieJournaliereDetail';
 import RapprochementBancaireList from './components/tresorerie/RapprochementBancaireList';
 import RapprochementBancaireForm from './components/tresorerie/RapprochementBancaireForm';
 import RapprochementBancaireDetail from './components/tresorerie/RapprochementBancaireDetail';
-
+import TresorerieJournaliere from './components/tresorerie/TresorerieJournaliere';
+import TresorerieJournaliereDetail from './components/tresorerie/TresorerieJournaliereDetail';
+import PrevisionsList from './components/tresorerie/PrevisionsList';
+import PrevisionsForm from './components/tresorerie/PrevisionsForm';
+import PrevisionsDetail from './components/tresorerie/PrevisionsDetail';
 import MouvementsTresorerieList from './components/tresorerie/MouvementsTresorerieList';
 import MouvementTresorerieDetail from './components/tresorerie/MouvementTresorerieDetail';
-
 import FraisList from './components/tresorerie/FraisList';
 import FraisDetail from './components/tresorerie/FraisDetail';
 import FraisForm from './components/tresorerie/FraisForm';
 import AlertesTresorerie from './components/tresorerie/AlertesTresorerie';
 
-// ============ Dashboard ============
-import Dashboard from './components/dashboard/Dashboard';
-import Statistiques from './components/dashboard/Statistiques';
-import Analyses from './components/dashboard/Analyses';
-import ClientDashboard from './components/dashboard/ClientDashboard';
-
-// ============ Finances ============
-import CompteListe from './components/finances/CompteListe';
-import CompteDetail from './components/finances/CompteDetail';
-import CompteForm from './components/finances/CompteForm'; // ✅ AJOUT (import manquant corrigé)
-
-
-import Utilisateurs from './components/users/Utilisateurs';
-import UtilisateurForm from './components/users/UtilisateurForm';
-import UtilisateurDetails from './components/users/UtilisateurDetail';
-
-
-// Imports
-import ClientDeliveriesList from './components/ventesclients/ClientDeliveriesList';
-import ClientDeliveryForm from './components/ventesclients/ClientDeliveryForm';
-import ClientDeliveryDetail from './components/ventesclients/ClientDeliveryDetail';
-import MyDeliveries from './components/ventesclients/MyDeliveries';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// ============ Finances / Comptabilité ============
 import EcrituresList from './components/finances/EcrituresList';
 import EcritureForm from './components/finances/EcritureForm';
+import JournalComptable from './components/finances/JournalComptable';
+import GrandLivre from './components/finances/GrandLivre';
+import BalanceGenerale from './components/finances/BalanceGenerale';
 import TresorerieListe from './components/finances/TresorerieListe';
 import TresorerieForm from './components/finances/TresorerieForm';
 import TresorerieDetail from './components/finances/TresorerieDetail';
-import MouvementTresorerieListe from './components/finances/MouvementTresorerieListe';
 import MouvementTresorerieForm from './components/finances/MouvementTresorerieForm';
-
 import DepensesList from './components/finances/DepensesList';
 import DepenseForm from './components/finances/DepenseForm';
-
 import ConfigurationFinanciere from './components/finances/ConfigurationFinanciere';
 import BudgetCategorieListe from './components/finances/BudgetCategorieListe';
 import BudgetCategorieForm from './components/finances/BudgetCategorieForm';
@@ -211,6 +158,26 @@ import RapportFinancierDetail from './components/finances/RapportFinancierDetail
 import RapportPdf from './components/finances/RapportPdf';
 import DashboardFinancier from './components/finances/DashboardFinancier';
 import ComptesList from './components/finances/ComptesList';
+import CompteListe from './components/finances/CompteListe';
+import CompteDetail from './components/finances/CompteDetail';
+import CompteForm from './components/finances/CompteForm';
+
+// ============ Dashboard ============
+import Dashboard from './components/dashboard/Dashboard';
+import Statistiques from './components/dashboard/Statistiques';
+import Analyses from './components/dashboard/Analyses';
+import ClientDashboard from './components/dashboard/ClientDashboard';
+
+// ============ Utilisateurs ============
+import Utilisateurs from './components/users/Utilisateurs';
+import UtilisateurForm from './components/users/UtilisateurForm';
+import UtilisateurDetails from './components/users/UtilisateurDetail';
+
+// ============ Livraisons / Stocks Clients ============
+import ClientDeliveriesList from './components/ventesclients/ClientDeliveriesList';
+import ClientDeliveryForm from './components/ventesclients/ClientDeliveryForm';
+import ClientDeliveryDetail from './components/ventesclients/ClientDeliveryDetail';
+import MyDeliveries from './components/ventesclients/MyDeliveries';
 import ClientStocksList from './components/ventesclients/ClientStocksList';
 import ClientStockDepositForm from './components/ventesclients/ClientStockDepositForm';
 import ClientStockWithdrawForm from './components/ventesclients/ClientStockWithdrawForm';
@@ -218,9 +185,7 @@ import ClientStockDetail from './components/ventesclients/ClientStockDetail';
 import ClientStockMovements from './components/ventesclients/ClientStockMovements';
 import MyStock from './components/ventesclients/MyStock';
 import MyStockMovements from './components/ventesclients/MyStockMovements';
-import ClientDeliveryRequest  from './components/ventesclients/ClientDeliveryRequest';
-
-
+import ClientDeliveryRequest from './components/ventesclients/ClientDeliveryRequest';
 
 function App() {
   const location = useLocation();
@@ -238,9 +203,7 @@ function App() {
     "/gallery",
     "/events",
     "/admissions",
-    "/team" // ✅ AJOUT (route /team déclarée mais manquante ici)
-    // ❌ Retiré "/services" (aucune route déclarée)
-    // ❌ Retiré "/blog/:id" (inutile : géré par startsWith("/blog/"))
+    "/team"
   ];
 
   const noNavBar =
@@ -253,7 +216,6 @@ function App() {
       {noNavBar ? (
         // ========== ROUTES PUBLIQUES (SITE WEB) ==========
         <Routes>
-          {/* Pages du site web */}
           <Route path="/" element={<HomePage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/programmes" element={<ProgrammesPage />} />
@@ -265,7 +227,6 @@ function App() {
           <Route path="/admissions" element={<AdmissionsPage />} />
           <Route path="/team" element={<TeamPage />} />
 
-          {/* Pages d'authentification */}
           <Route path="/register" element={<Register />} />
           <Route path="/register-client" element={<RegisterClient />} />
           <Route path="/login" element={<Login />} />
@@ -288,51 +249,44 @@ function App() {
                 <Route path="/company-config" element={<EtablissementSettings />} />
                 <Route path="/clients-approval" element={<ClientsApproval />} />
 
-
-
+                {/* ==================== UTILISATEURS ==================== */}
                 <Route path="/utilisateurs" element={<Utilisateurs />} />
                 <Route path="/utilisateurs/ajouter" element={<UtilisateurForm />} />
                 <Route path="/utilisateurs/:id" element={<UtilisateurDetails />} />
                 <Route path="/utilisateurs/:id/modifier" element={<UtilisateurForm />} />
 
-               
-{/* ============ ADMIN ============ */}
-<Route path="/client-deliveries" element={<ClientDeliveriesList />} />
-<Route path="/client-deliveries/nouveau" element={<ClientDeliveryForm />} />
-<Route path="/client-deliveries/:id" element={<ClientDeliveryDetail />} />
-<Route path="/client/deliveries/nouvelle" element={<ClientDeliveryRequest />} />
-<Route path="/client/deliveries/:id/modifier" element={<ClientDeliveryRequest />} />
+                {/* ==================== LIVRAISONS ==================== */}
+                <Route path="/client-deliveries" element={<ClientDeliveriesList />} />
+                <Route path="/client-deliveries/nouveau" element={<ClientDeliveryForm />} />
+                <Route path="/client-deliveries/:id" element={<ClientDeliveryDetail />} />
+                <Route path="/client/deliveries/nouvelle" element={<ClientDeliveryRequest />} />
+                <Route path="/client/deliveries/:id/modifier" element={<ClientDeliveryRequest />} />
+                <Route path="/client/deliveries" element={<MyDeliveries />} />
 
-{/* ============ CLIENT ============ */}
-<Route path="/client/deliveries" element={<MyDeliveries />} />
+                {/* ==================== STOCKS CLIENTS ==================== */}
+                <Route path="/client-stocks" element={<ClientStocksList />} />
+                <Route path="/client-stocks/depot" element={<ClientStockDepositForm />} />
+                <Route path="/client-stocks/retrait" element={<ClientStockWithdrawForm />} />
+                <Route path="/client-stocks/mouvements" element={<ClientStockMovements />} />
+                <Route path="/client-stocks/:clientId/detail" element={<ClientStockDetail />} />
+                <Route path="/client/stock" element={<MyStock />} />
+                <Route path="/client/stock/movements" element={<MyStockMovements />} />
 
-
-                {/* ============ ADMIN ============ */}
-<Route path="/client-stocks" element={<ClientStocksList />} />
-<Route path="/client-stocks/depot" element={<ClientStockDepositForm />} />
-<Route path="/client-stocks/retrait" element={<ClientStockWithdrawForm />} />
-<Route path="/client-stocks/mouvements" element={<ClientStockMovements />} />
-<Route path="/client-stocks/:clientId/detail" element={<ClientStockDetail />} />
-
-{/* ============ CLIENT ============ */}
-<Route path="/client/stock" element={<MyStock />} />
-<Route path="/client/stock/movements" element={<MyStockMovements />} />
-
-                {/* ==================== FINANCES ==================== */}
+                {/* ==================== FINANCES / TRÉSORERIE ==================== */}
                 <Route path="/tresorerie" element={<TresorerieListe />} />
                 <Route path="/tresorerie/nouveau" element={<TresorerieForm />} />
                 <Route path="/tresorerie/:id" element={<TresorerieDetail />} />
                 <Route path="/tresorerie/:id/modifier" element={<TresorerieForm />} />
 
-                {/* ⚠️ UNE SEULE déclaration pour /mouvements-tresorerie */}
-                {/* Décision : on garde le module trésorerie (plus complet) */}
                 <Route path="/mouvements-tresorerie" element={<MouvementsTresorerieList />} />
+                <Route path="/mouvements-tresorerie/nouveau" element={<MouvementTresorerieForm />} />
                 <Route path="/mouvements-tresorerie/:id" element={<MouvementTresorerieDetail />} />
 
                 <Route path="/config-financiere" element={<ConfigurationFinanciere />} />
 
                 <Route path="/budget-categories" element={<BudgetCategorieListe />} />
                 <Route path="/budget-categories/nouveau" element={<BudgetCategorieForm />} />
+                <Route path="/budget-categories/:id/modifier" element={<BudgetCategorieForm />} />
 
                 <Route path="/budgets" element={<BudgetsList />} />
                 <Route path="/budgets/nouveau" element={<BudgetForm />} />
@@ -346,20 +300,26 @@ function App() {
 
                 <Route path="/dashboard-finances" element={<DashboardFinancier />} />
 
-                {/* Comptes comptables (finances) */}
-                <Route path="/comptes-comptables" element={<ComptesList />} />
-                <Route path="/comptes-comptables/nouveau" element={<CompteForm />} />
-
-                {/* Comptes (finances - autre module) */}
+                {/* ==================== COMPTES ==================== */}
                 <Route path="/comptes" element={<CompteListe />} />
                 <Route path="/comptes/nouveau" element={<CompteForm />} />
                 <Route path="/comptes/:id" element={<CompteDetail />} />
                 <Route path="/comptes/:id/modifier" element={<CompteForm />} />
 
+                <Route path="/comptes-comptables" element={<ComptesList />} />
+                <Route path="/comptes-comptables/nouveau" element={<CompteForm />} />
+                <Route path="/comptes-comptables/:id" element={<CompteDetail />} />
+
+                {/* ==================== COMPTABILITÉ ==================== */}
                 <Route path="/ecritures-comptables" element={<EcrituresList />} />
                 <Route path="/ecritures-comptables/nouveau" element={<EcritureForm />} />
                 <Route path="/ecritures-comptables/:id/modifier" element={<EcritureForm />} />
 
+                <Route path="/journal-comptable" element={<JournalComptable />} />
+                <Route path="/grand-livre" element={<GrandLivre />} />
+                <Route path="/balance-generale" element={<BalanceGenerale />} />
+
+                {/* ==================== DÉPENSES ==================== */}
                 <Route path="/depenses" element={<DepensesList />} />
                 <Route path="/depenses/nouveau" element={<DepenseForm />} />
                 <Route path="/depenses/:id/modifier" element={<DepenseForm />} />
@@ -379,19 +339,15 @@ function App() {
                 {/* ==================== STOCKS ==================== */}
                 <Route path="/stocks" element={<StocksList />} />
                 <Route path="/lots" element={<LotsList />} />
-
                 <Route path="/unites-mesure" element={<UnitesMesure />} />
                 <Route path="/unites-mesure/nouveau" element={<UniteMesureForm />} />
                 <Route path="/unites-mesure/:id/modifier" element={<UniteMesureForm />} />
-
                 <Route path="/add-stock-manual" element={<AddStockManual />} />
                 <Route path="/mouvements-stock" element={<MouvementsStock />} />
-
                 <Route path="/entrepots" element={<Entrepots />} />
                 <Route path="/entrepots/nouveau" element={<EntrepotForm />} />
                 <Route path="/entrepots/:id/modifier" element={<EntrepotForm />} />
                 <Route path="/entrepots/:id" element={<EntrepotDetails />} />
-
                 <Route path="/transferts" element={<Transferts />} />
                 <Route path="/transferts/nouveau" element={<TransfertForm />} />
                 <Route path="/transferts/:id" element={<TransfertDetails />} />
@@ -421,7 +377,6 @@ function App() {
                 <Route path="/factures/:id/modifier" element={<FactureForm />} />
                 <Route path="/factures/:id/pdf" element={<FacturePdf />} />
 
-                {/* POS — ✅ slash ajouté */}
                 <Route path="/pos-scan" element={<PosScanSimple />} />
                 <Route path="/point-de-vente" element={<PosForm />} />
 
@@ -438,13 +393,14 @@ function App() {
                 <Route path="/wallets/:id" element={<WalletDetail />} />
                 <Route path="/wallets/:walletId/pay" element={<WalletPay />} />
 
-                {/* ==================== FOURNISSEURS ==================== */}
+                {/* ==================== ACHATS / FOURNISSEURS ==================== */}
+                <Route path="/dashboard-achats" element={<DashboardAchats />} />
+
                 <Route path="/fournisseurs" element={<FournisseursList />} />
                 <Route path="/fournisseurs/nouveau" element={<FournisseursForm />} />
                 <Route path="/fournisseurs/:id/modifier" element={<FournisseursForm />} />
                 <Route path="/fournisseurs/:id" element={<FournisseursDetails />} />
 
-                {/* Commandes fournisseurs */}
                 <Route path="/commandes-fournisseurs" element={<CommandesList />} />
                 <Route path="/commandes-fournisseurs/nouveau" element={<CommandeForm />} />
                 <Route path="/commandes-fournisseurs/:id/modifier" element={<CommandeForm />} />
@@ -468,15 +424,12 @@ function App() {
                 <Route path="/paiements-fournisseurs/nouveau" element={<PaiementFournisseurForm />} />
                 <Route path="/paiements-fournisseurs/:id" element={<PaiementFournisseurDetail />} />
 
-                {/* Retours fournisseurs */}
                 <Route path="/retours-fournisseurs" element={<PurchaseReturnsList />} />
                 <Route path="/retours-fournisseurs/nouveau" element={<PurchaseReturnForm />} />
                 <Route path="/retours-fournisseurs/:id" element={<PurchaseReturnDetail />} />
                 <Route path="/retours-fournisseurs/:id/pdf" element={<PurchaseReturnPdf />} />
 
                 {/* ==================== TRÉSORERIE (suite) ==================== */}
-                <Route path="/dashboard-tresorerie" element={<DashboardTresorerie />} />
-
                 <Route path="/caisses" element={<CaissesList />} />
                 <Route path="/caisses/nouveau" element={<CaissesForm />} />
                 <Route path="/caisses/:id/modifier" element={<CaissesForm />} />
@@ -487,10 +440,7 @@ function App() {
                 <Route path="/comptes-bancaires/:id" element={<CompteBancaireDetail />} />
                 <Route path="/comptes-bancaires/modifier/:id" element={<CompteBancaireForm />} />
 
-                <Route path="/previsions" element={<PrevisionsList />} />
-                <Route path="/previsions/nouveau" element={<PrevisionsForm />} />
-                <Route path="/previsions/:id" element={<PrevisionsDetail />} />
-                <Route path="/previsions/modifier/:id" element={<PrevisionsForm />} />
+                <Route path="/dashboard-tresorerie" element={<DashboardTresorerie />} />
 
                 <Route path="/rapprochement-bancaire" element={<RapprochementBancaireList />} />
                 <Route path="/rapprochement-bancaire/nouveau" element={<RapprochementBancaireForm isEdit={false} />} />
@@ -500,12 +450,17 @@ function App() {
                 <Route path="/tresorerie-journaliere" element={<TresorerieJournaliere />} />
                 <Route path="/tresorerie-journaliere/:id" element={<TresorerieJournaliereDetail />} />
 
+                <Route path="/previsions" element={<PrevisionsList />} />
+                <Route path="/previsions/nouveau" element={<PrevisionsForm />} />
+                <Route path="/previsions/:id" element={<PrevisionsDetail />} />
+                <Route path="/previsions/modifier/:id" element={<PrevisionsForm />} />
+
+                <Route path="/alertes-tresorerie" element={<AlertesTresorerie />} />
+
                 <Route path="/frais" element={<FraisList />} />
                 <Route path="/frais/nouveau" element={<FraisForm />} />
                 <Route path="/frais/:id" element={<FraisDetail />} />
                 <Route path="/frais/modifier/:id" element={<FraisForm />} />
-
-                <Route path="/alertes-tresorerie" element={<AlertesTresorerie />} />
               </Route>
             </Routes>
           }
