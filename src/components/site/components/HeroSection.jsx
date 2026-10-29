@@ -1,99 +1,102 @@
-// src/components/site/HeroSection.jsx
+// src/components/site/components/HeroSection.jsx
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Rocket,
-  ShoppingBag,
+  Package,
+  Boxes,
+  ClipboardCheck,
+  PackageCheck,
   Truck,
-  Megaphone,
-  Briefcase,
-  Handshake,
+  LayoutDashboard,
+  Store,
   ArrowRight,
   Phone,
-  Target,
   Sparkles,
   Star
 } from 'lucide-react';
+
+// ✅ Image de fond (carte de la Côte d'Ivoire)
+import ivoryCoast from '../../../assets/ivory-coast.svg';
 
 const SHARED_VIDEO = '/video.mp4';
 
 const slides = [
   {
     id: 1,
-    title: 'Distribution & Négoce',
-    accent: 'Négoce',
-    subtitle: 'Achat • Vente • Revente',
+    title: 'Stockage de marchandises',
+    accent: 'Stockage',
+    subtitle: '25 000 FCFA / m³ / mois',
     description:
-      "Approvisionnement, distribution et revente de produits en gros et demi-gros. Nous connectons producteurs, fournisseurs et revendeurs pour dynamiser votre chiffre d'affaires.",
-    buttonLabel: 'Découvrir nos offres',
-    buttonLink: '/services/distribution',
-    icon: ShoppingBag
+      "Centralisez vos marchandises dans un espace adapté à votre activité. Inventaire, suivi des quantités et réception contrôlée de vos produits, à partir de 1 m³.",
+    buttonLabel: 'Découvrir le stockage',
+    buttonLink: '/services/stockage',
+    icon: Package
   },
   {
     id: 2,
-    title: 'Commerce Général',
-    accent: 'Général',
-    subtitle: 'Large Gamme de Produits',
+    title: 'Gestion et suivi des stocks',
+    accent: 'suivi',
+    subtitle: 'Inventaire à distance',
     description:
-      "Une gamme complète de produits de consommation courante, d'équipements et de fournitures professionnelles pour particuliers et entreprises, livrés rapidement.",
-    buttonLabel: 'Voir le catalogue',
-    buttonLink: '/produits',
-    icon: Briefcase
+      "Consultez vos produits, variantes, couleurs, tailles, entrées et sorties depuis votre téléphone, votre tablette ou votre ordinateur. Un historique fiable à chaque opération.",
+    buttonLabel: 'Voir la gestion des stocks',
+    buttonLink: '/services/gestion-stocks',
+    icon: Boxes
   },
   {
     id: 3,
-    title: 'Import & Export',
-    accent: 'Export',
-    subtitle: 'Sourcing International',
+    title: 'Closing des commandes',
+    accent: 'Closing',
+    subtitle: '500 FCFA / commande livrée',
     description:
-      "Sourcing, importation et exportation de marchandises depuis l'Asie, l'Europe et le Moyen-Orient. Nous gérons la logistique, les douanes et la livraison.",
-    buttonLabel: 'Nos partenaires',
-    buttonLink: '/services/import-export',
-    icon: Truck
+      "Nous vérifions les informations et confirmons l'achat auprès de votre client avant la préparation. Un traitement soigné pour limiter les erreurs avant expédition.",
+    buttonLabel: 'En savoir plus sur le closing',
+    buttonLink: '/services/closing',
+    icon: ClipboardCheck
   },
   {
     id: 4,
-    title: 'Marketing & Communication',
-    accent: 'Communication',
-    subtitle: 'Visibilité & Croissance',
+    title: 'Préparation des commandes',
+    accent: 'Préparation',
+    subtitle: 'Préparation standard gratuite',
     description:
-      "Stratégie marketing, communication digitale, branding et campagnes publicitaires pour booster la visibilité de votre marque et conquérir de nouveaux marchés.",
-    buttonLabel: 'Nos services marketing',
-    buttonLink: '/services/marketing',
-    icon: Megaphone
+      "Nous prélevons, vérifions et préparons vos colis selon les informations enregistrées sur la plateforme. Le contrôle des références et des quantités réduit les erreurs.",
+    buttonLabel: 'Voir la préparation',
+    buttonLink: '/services/preparation',
+    icon: PackageCheck
   },
   {
     id: 5,
-    title: 'Conseil & Accompagnement',
-    accent: 'Accompagnement',
-    subtitle: 'Stratégie Commerciale',
+    title: 'Livraison et expédition',
+    accent: 'Livraison',
+    subtitle: 'Abidjan dès 1 500 FCFA',
     description:
-      "Nous accompagnons les entreprises dans leur développement commercial : étude de marché, plan d'affaires, prospection et optimisation des ventes.",
-    buttonLabel: 'Prendre rendez-vous',
-    buttonLink: '/services/conseil',
-    icon: Target
+      "Livraison à Abidjan à partir de 1 500 FCFA, expédition hors Abidjan à partir de 2 500 FCFA. Le prix final dépend de la destination et des caractéristiques du colis.",
+    buttonLabel: 'Demander un devis livraison',
+    buttonLink: '/services/livraison',
+    icon: Truck
   },
   {
     id: 6,
-    title: 'Partenariats & Réseau',
-    accent: 'Réseau',
-    subtitle: 'Business Development',
+    title: 'Espace partenaire',
+    accent: 'partenaire',
+    subtitle: 'Tableau de bord sécurisé',
     description:
-      "Un réseau solide de partenaires, fournisseurs et distributeurs. Nous créons des opportunités d'affaires et facilitons les mises en relation B2B.",
-    buttonLabel: 'Rejoindre le réseau',
-    buttonLink: '/partenaires',
-    icon: Handshake
+      "Suivez vos produits, commandes, ventes, frais et paiements depuis un compte personnel sécurisé. Chaque partenaire n'accède qu'à ses propres informations.",
+    buttonLabel: 'Créer un compte',
+    buttonLink: '/inscription',
+    icon: LayoutDashboard
   },
   {
     id: 7,
-    title: 'Logistique & Livraison',
-    accent: 'Livraison',
-    subtitle: 'Rapidité & Fiabilité',
+    title: 'Vente sur ZonAcha',
+    accent: 'ZonAcha',
+    subtitle: 'Présentation facultative',
     description:
-      "Livraison rapide partout au Sénégal et en Afrique de l'Ouest. Gestion complète de la chaîne logistique pour un service fiable et ponctuel.",
-    buttonLabel: 'Demander un devis',
-    buttonLink: '/services/logistique',
-    icon: Rocket
+      "Présentez vos produits sur la boutique e-commerce ZonAcha, avec photos, descriptions et prix. Cette possibilité reste facultative et nécessite votre accord explicite.",
+    buttonLabel: 'Découvrir ZonAcha',
+    buttonLink: '/services/zonacha',
+    icon: Store
   }
 ];
 
@@ -135,8 +138,24 @@ const HeroSection = () => {
   return (
     <section className="relative min-h-screen lg:h-screen lg:min-h-[780px] overflow-hidden bg-gradient-to-br from-base-100 via-base-100 to-base-200">
 
+      {/* ==================== IMAGE DE FOND — CARTE CÔTE D'IVOIRE (NETTE) ==================== */}
+      <div
+        className="absolute inset-0 pointer-events-none z-0"
+        aria-hidden="true"
+        style={{
+          backgroundImage: `url(${ivoryCoast})`,
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'center center',
+          backgroundSize: 'contain',
+          opacity: 0.30
+        }}
+      />
+
+      {/* Voile léger pour la lisibilité du texte */}
+      <div className="absolute inset-0 bg-base-100/20 pointer-events-none z-0" aria-hidden="true" />
+
       {/* ==================== FONDS DÉCORATIFS ==================== */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-40 -right-40 w-[600px] h-[600px] rounded-full bg-primary/20 blur-[120px] animate-pulse" />
         <div className="absolute -bottom-40 -left-40 w-[600px] h-[600px] rounded-full bg-secondary/20 blur-[120px]" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full bg-primary/5 blur-[150px]" />
@@ -175,7 +194,7 @@ const HeroSection = () => {
                 </span>
                 <span className="pr-3 flex items-center gap-1 text-xs font-semibold text-primary">
                   <Star className="w-3.5 h-3.5 fill-primary" />
-                  Nouveau
+                  StockAcha
                 </span>
               </div>
 
@@ -206,6 +225,11 @@ const HeroSection = () => {
                   </button>
                 </Link>
               </div>
+
+              {/* ✅ Signature de marque */}
+              <p className="mt-8 text-sm sm:text-base font-bold text-base-content/60 tracking-wide">
+                StockAcha — Votre stock, notre logistique, votre tranquillité.
+              </p>
 
             </div>
 
@@ -260,10 +284,10 @@ const HeroSection = () => {
 
                 </div>
 
-                {/* ✅ Badge flottant "Excellence" */}
+                {/* ✅ Badge flottant */}
                 <div className="absolute -top-4 -right-4 bg-primary text-primary-content rounded-2xl px-4 py-3 shadow-2xl flex items-center gap-2 animate-bounce" style={{ animationDuration: '3s' }}>
                   <Sparkles className="w-5 h-5" />
-                  <span className="text-xs font-black uppercase tracking-wider">Excellence</span>
+                  <span className="text-xs font-black uppercase tracking-wider">Tranquillité</span>
                 </div>
               </div>
 

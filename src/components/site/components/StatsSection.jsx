@@ -1,28 +1,35 @@
 // src/components/site/StatsSection.jsx
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Users,
-  ShoppingBag,
+  Boxes,
+  PackageCheck,
   Truck,
-  Handshake,
-  Target,
-  TrendingUp,
+  ClipboardCheck,
+  Users,
+  Wallet,
   BarChart3,
   Award,
-  Globe,
   Sparkles
 } from 'lucide-react';
 
-// ✅ Statistiques 100% agence commerciale
+// ✅ Image de fond (carte de la Côte d'Ivoire)
+
+import ivoryCoast from '../../../assets/ivory-coast.svg';
+
+// ============================================================
+// ⚠️ TODO — Chiffres à faire valider par le directeur de StockAcha.
+// Les valeurs ci-dessous sont des PLACEHOLDERS neutres, pas des
+// chiffres réels. Remplacer par les données vérifiées avant publication.
+// ============================================================
 const stats = [
-  { icon: Users,        value: 500,   suffix: '+',  label: 'Clients actifs',        desc: 'Particuliers & entreprises' },
-  { icon: ShoppingBag,  value: 1500,  suffix: '+',  label: 'Commandes livrées',      desc: "Chaque année" },
-  { icon: Truck,        value: 12,    suffix: '',   label: 'Véhicules de livraison', desc: 'Flotte propre' },
-  { icon: Handshake,    value: 80,    suffix: '+',  label: 'Partenaires B2B',        desc: 'Locaux & internationaux' },
-  { icon: Globe,        value: 15,    suffix: '',   label: 'Pays couverts',          desc: 'Afrique & au-delà' },
-  { icon: TrendingUp,   value: 98,    suffix: '%',  label: 'Clients satisfaits',     desc: 'Taux de rétention' },
-  { icon: BarChart3,    value: 10,    suffix: ' ans', label: "D'expérience",         desc: 'Sur le marché' },
-  { icon: Award,        value: 100,   suffix: '%',  label: 'Engagement qualité',     desc: 'Sur chaque commande' }
+  { icon: Boxes,          value: 0,  suffix: ' m³', label: 'Capacité de stockage',     desc: 'Espace disponible' /* TODO */ },
+  { icon: PackageCheck,   value: 0,  suffix: '+',  label: 'Commandes préparées',      desc: 'Depuis le lancement' /* TODO */ },
+  { icon: Truck,          value: 2,  suffix: '',   label: 'Zones de livraison',       desc: 'Abidjan & hors Abidjan' },
+  { icon: ClipboardCheck, value: 500, suffix: ' FCFA', label: 'Closing par commande', desc: 'Commande effectivement livrée' },
+  { icon: Users,          value: 0,  suffix: '+',  label: 'Partenaires actifs',       desc: 'Commerçants & vendeurs en ligne' /* TODO */ },
+  { icon: Wallet,         value: 3,  suffix: '',   label: 'Fréquences de reversement', desc: 'Quotidien, hebdo, mensuel' },
+  { icon: BarChart3,      value: 25, suffix: ' 000 FCFA', label: 'Stockage / m³ / mois', desc: 'À partir de 1 m³' },
+  { icon: Award,          value: 100, suffix: '%', label: 'Traçabilité des mouvements', desc: 'Entrées & sorties historisées' }
 ];
 
 // ✅ Compteur animé simple
@@ -65,8 +72,24 @@ const StatsSection = () => {
   return (
     <section className="relative py-24 bg-base-100 overflow-hidden">
 
+      {/* ==================== IMAGE DE FOND — CARTE CÔTE D'IVOIRE (NETTE) ==================== */}
+      <div
+        className="absolute inset-0 pointer-events-none z-0"
+        aria-hidden="true"
+        style={{
+          backgroundImage: `url(${ivoryCoast})`,
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'center center',
+          backgroundSize: 'contain',
+          opacity: 0.30
+        }}
+      />
+
+      {/* Voile léger pour la lisibilité du texte */}
+      <div className="absolute inset-0 bg-base-100/20 pointer-events-none z-0" aria-hidden="true" />
+
       {/* ==================== FONDS DÉCORATIFS ==================== */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-40 -left-40 w-[500px] h-[500px] rounded-full bg-primary/10 blur-[120px]" />
         <div className="absolute -bottom-40 -right-40 w-[500px] h-[500px] rounded-full bg-secondary/10 blur-[120px]" />
         <div
@@ -84,7 +107,6 @@ const StatsSection = () => {
         {/* ==================== EN-TÊTE ==================== */}
         <div className="text-center max-w-3xl mx-auto mb-16">
 
-          {/* Badge */}
           <div className="inline-flex items-center gap-2 px-1 py-1 rounded-full bg-gradient-to-r from-primary/20 via-primary/10 to-transparent border border-primary/30 shadow-lg shadow-primary/10 mb-6">
             <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary text-primary-content text-xs sm:text-sm font-bold uppercase tracking-wider">
               <BarChart3 className="w-4 h-4" />
@@ -92,13 +114,12 @@ const StatsSection = () => {
             </span>
             <span className="pr-3 flex items-center gap-1 text-xs font-semibold text-primary">
               <Sparkles className="w-3.5 h-3.5 fill-primary" />
-              Performance
+              Transparence
             </span>
           </div>
 
-          {/* Titre impactant */}
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-secondary leading-[1.05] tracking-tighter mb-6">
-            L'agence en{' '}
+            StockAcha en{' '}
             <span className="relative inline-block">
               <span className="bg-gradient-to-r from-primary via-primary to-primary/70 bg-clip-text text-transparent">
                 chiffres
@@ -108,8 +129,8 @@ const StatsSection = () => {
           </h2>
 
           <p className="text-base-content/70 text-lg md:text-xl leading-relaxed max-w-2xl mx-auto font-medium">
-            Des résultats concrets, une croissance continue et un engagement
-            sans faille auprès de nos clients.
+            Des tarifs clairs, des règles transparentes et un engagement
+            quotidien pour simplifier votre logistique.
           </p>
         </div>
 
@@ -141,7 +162,7 @@ const StatsSection = () => {
                   </div>
 
                   {/* Valeur animée */}
-                  <div className="relative text-3xl md:text-4xl font-black text-primary leading-none mb-2">
+                  <div className="relative text-2xl md:text-3xl font-black text-primary leading-none mb-2">
                     <AnimatedNumber end={stat.value} suffix={stat.suffix} />
                   </div>
 
@@ -169,19 +190,18 @@ const StatsSection = () => {
 
           <div className="relative bg-base-200/80 backdrop-blur-sm border-2 border-primary/20 rounded-2xl p-8 text-center shadow-xl">
 
-            {/* Petit accent orange */}
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 mb-4">
               <Award className="w-6 h-6 text-primary" />
             </div>
 
             <p className="text-base-content/80 text-lg font-medium leading-relaxed mb-3">
-              Ces chiffres reflètent notre engagement quotidien pour offrir des
-              <span className="text-primary font-bold"> services commerciaux de qualité</span>,
-              une logistique fiable et un accompagnement sur-mesure à chaque client.
+              Notre engagement : vous permettre de savoir quels produits vous possédez,
+              quelles quantités sont disponibles et comment votre stock évolue.
+              <span className="text-primary font-bold"> Votre tranquillité, notre priorité.</span>
             </p>
 
             <p className="text-sm text-base-content/55 italic">
-              — L'équipe {new Date().getFullYear()}
+              — L'équipe StockAcha {new Date().getFullYear()}
             </p>
 
           </div>

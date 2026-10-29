@@ -2,85 +2,99 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ShoppingBag,
+  Package,
+  Boxes,
+  ClipboardCheck,
+  PackageCheck,
   Truck,
-  Handshake,
-  Target,
-  TrendingUp,
-  Shield,
-  Globe,
-  Headphones,
+  Warehouse,
+  Store,
   ArrowRight,
   Sparkles,
   Zap,
   Award
 } from 'lucide-react';
 
+// ✅ Image de fond (carte de la Côte d'Ivoire)
+import ivoryCoast from '../../../assets/ivory-coast.svg';
+
 const FeaturesSection = () => {
+  // ============================================================
+  // ✅ Les 7 services officiels de StockAcha (section 2 du document)
+  // ============================================================
   const features = [
     {
-      icon: ShoppingBag,
-      title: 'Négoce & Distribution',
+      icon: Package,
+      title: 'Stockage de marchandises',
       description:
-        "Achat, vente et revente de marchandises en gros et demi-gros. Un circuit court entre producteurs, fournisseurs et revendeurs.",
-      link: '/services/distribution'
+        "Un espace adapté à votre activité, avec inventaire et suivi des quantités. 25 000 FCFA par m³ et par mois, à partir de 1 m³.",
+      link: '/services/stockage'
+    },
+    {
+      icon: Boxes,
+      title: 'Gestion et suivi des stocks',
+      description:
+        "Consultez vos produits, variantes, couleurs, tailles, entrées et sorties depuis votre espace personnel, sans vous déplacer.",
+      link: '/services/gestion-stocks'
+    },
+    {
+      icon: ClipboardCheck,
+      title: 'Closing des commandes',
+      description:
+        "Vérification des informations et confirmation de l'achat auprès du client avant préparation. 500 FCFA par commande effectivement livrée.",
+      link: '/services/closing'
+    },
+    {
+      icon: PackageCheck,
+      title: 'Préparation des commandes',
+      description:
+        "Prélèvement, vérification des références et des quantités, puis préparation du colis. La préparation standard est gratuite selon les conditions convenues.",
+      link: '/services/preparation'
     },
     {
       icon: Truck,
-      title: 'Logistique & Livraison',
+      title: 'Livraison et expédition',
       description:
-        "Livraison rapide et fiable partout au Sénégal et en Afrique de l'Ouest. Suivi en temps réel de vos commandes.",
-      link: '/services/logistique'
+        "Livraison à Abidjan à partir de 1 500 FCFA, expédition hors Abidjan à partir de 2 500 FCFA. Le prix final dépend de la destination et du colis.",
+      link: '/services/livraison'
     },
     {
-      icon: Handshake,
-      title: 'Réseau de partenaires',
+      icon: Warehouse,
+      title: 'Dépôt et stockage pour les clients',
       description:
-        "Un réseau solide de fournisseurs et distributeurs locaux et internationaux pour sécuriser vos approvisionnements.",
-      link: '/partenaires'
+        "Un espace pour conserver vos marchandises : commerçants, vendeurs en ligne, entrepreneurs ou entreprises souhaitant externaliser leur logistique.",
+      link: '/services/depot'
     },
     {
-      icon: Target,
-      title: 'Conseil stratégique',
+      icon: Store,
+      title: 'Vente sur ZonAcha',
       description:
-        "Accompagnement personnalisé pour développer votre activité commerciale, optimiser vos marges et conquérir de nouveaux marchés.",
-      link: '/services/conseil'
-    },
-    {
-      icon: TrendingUp,
-      title: 'Croissance commerciale',
-      description:
-        "Des solutions concrètes pour booster votre chiffre d'affaires : prospection, fidélisation et développement B2B.",
-      link: '/services/croissance'
-    },
-    {
-      icon: Shield,
-      title: 'Fiabilité & Confiance',
-      description:
-        "Des transactions sécurisées, des contrats clairs et un engagement total sur la qualité de nos produits et services.",
-      link: '/about'
-    },
-    {
-      icon: Globe,
-      title: 'Import & Export',
-      description:
-        "Sourcing international (Asie, Europe, Moyen-Orient), gestion des douanes et transport jusqu'à votre entrepôt.",
-      link: '/services/import-export'
-    },
-    {
-      icon: Headphones,
-      title: 'Service client 24/7',
-      description:
-        "Une équipe commerciale à votre écoute, disponible à tout moment pour répondre à vos besoins urgents.",
-      link: '/contact'
+        "Présentation facultative de vos produits sur la boutique e-commerce ZonAcha, avec photos, descriptions et prix. Nécessite votre accord explicite.",
+      link: '/services/zonacha'
     }
   ];
 
   return (
     <section className="relative py-24 bg-base-200 overflow-hidden">
 
+      {/* ==================== IMAGE DE FOND — CARTE CÔTE D'IVOIRE (NETTE) ==================== */}
+      <div
+        className="absolute inset-0 pointer-events-none z-0"
+        aria-hidden="true"
+        style={{
+          backgroundImage: `url(${ivoryCoast})`,
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'center center',
+          backgroundSize: 'contain',
+          opacity: 0.30
+        }}
+      />
+
+      {/* Voile léger pour la lisibilité du texte */}
+      <div className="absolute inset-0 bg-base-100/20 pointer-events-none z-0" aria-hidden="true" />
+
       {/* ==================== FONDS DÉCORATIFS ==================== */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-40 right-0 w-[500px] h-[500px] rounded-full bg-primary/10 blur-[120px]" />
         <div className="absolute -bottom-40 left-0 w-[500px] h-[500px] rounded-full bg-secondary/10 blur-[120px]" />
         <div
@@ -98,38 +112,37 @@ const FeaturesSection = () => {
         {/* ==================== EN-TÊTE ==================== */}
         <div className="text-center max-w-3xl mx-auto mb-16">
 
-          {/* Badge */}
           <div className="inline-flex items-center gap-2 px-1 py-1 rounded-full bg-gradient-to-r from-primary/20 via-primary/10 to-transparent border border-primary/30 shadow-lg shadow-primary/10 mb-6">
             <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary text-primary-content text-xs sm:text-sm font-bold uppercase tracking-wider">
               <Award className="w-4 h-4" />
-              Nos atouts
+              Nos services
             </span>
             <span className="pr-3 flex items-center gap-1 text-xs font-semibold text-primary">
               <Sparkles className="w-3.5 h-3.5 fill-primary" />
-              Excellence
+              Logistique simplifiée
             </span>
           </div>
 
-          {/* Titre impactant */}
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-black text-secondary leading-[1.05] tracking-tighter mb-6">
-            Pourquoi nous{' '}
+            Ce que nous{' '}
             <span className="relative inline-block">
               <span className="bg-gradient-to-r from-primary via-primary to-primary/70 bg-clip-text text-transparent">
-                choisir
+                faisons
               </span>
               <span className="absolute -bottom-2 left-0 right-0 h-1.5 bg-gradient-to-r from-primary via-primary/60 to-transparent rounded-full"></span>
             </span>
-            {' '}?
+            {' '}pour vous
           </h2>
 
           <p className="text-base-content/70 text-lg md:text-xl leading-relaxed max-w-2xl mx-auto font-medium">
-            Des services commerciaux complets pour développer votre activité,
-            sécuriser vos approvisionnements et conquérir de nouveaux marchés.
+            Stockage, gestion des stocks, closing, préparation, livraison et dépôt :
+            confiez-nous la gestion opérationnelle de vos commandes et concentrez-vous
+            sur le développement de votre activité.
           </p>
         </div>
 
         {/* ==================== GRILLE ==================== */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((feature, index) => {
             const Icon = feature.icon;
             return (
@@ -187,7 +200,7 @@ const FeaturesSection = () => {
             <Link to="/contact" className="group relative">
               <span className="absolute -inset-1 bg-gradient-to-r from-primary to-primary/60 rounded-2xl blur-lg opacity-60 group-hover:opacity-100 transition-opacity duration-300 animate-pulse"></span>
               <button className="relative px-10 py-5 rounded-2xl font-black text-lg transition-all duration-300 hover:-translate-y-1 shadow-2xl flex items-center justify-center gap-3 bg-primary text-primary-content">
-                Discuter de votre projet
+                Demander un devis
                 <ArrowRight className="w-6 h-6 group-hover:translate-x-2 transition-transform duration-300" />
               </button>
             </Link>
