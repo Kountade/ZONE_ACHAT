@@ -12,7 +12,7 @@ import BlogDetail from './components/site/BlogDetail';
 import GalleryPage from './components/site/GalleryPage';
 import EventsPage from './components/site/EventsPage';
 import AdmissionsPage from './components/site/AdmissionsPage';
-import TeamPage from './components/site/TeamPage';
+import ServicesPage from './components/site/ServicesPage';
 
 // ============ COMPOSANTS AUTHENTIFICATION ============
 import Register from './components/auth/Register';
@@ -203,7 +203,8 @@ function App() {
     "/gallery",
     "/events",
     "/admissions",
-    "/team"
+    "/services"
+
   ];
 
   const noNavBar =
@@ -225,7 +226,7 @@ function App() {
           <Route path="/gallery" element={<GalleryPage />} />
           <Route path="/events" element={<EventsPage />} />
           <Route path="/admissions" element={<AdmissionsPage />} />
-          <Route path="/team" element={<TeamPage />} />
+          <Route path="/services" element={<ServicesPage />} />
 
           <Route path="/register" element={<Register />} />
           <Route path="/register-client" element={<RegisterClient />} />
