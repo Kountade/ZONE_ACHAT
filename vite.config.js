@@ -1,3 +1,4 @@
+// vite.config.js
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -5,20 +6,20 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   plugins: [
-    react(), 
+    react(),
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'robots.txt'],
       manifest: {
-        name: 'zoneachat',
-        short_name: 'zoneachat',
-        description: 'Application de gestion zoneachat',
+        name: 'StockAcha',
+        short_name: 'StockAcha',
+        description: 'Plateforme de stockage, de gestion de stock et de logistique — StockAcha',
         theme_color: '#1e40af',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
-        categories: ['business', 'productivity'],
+        categories: ['business', 'productivity', 'logistics'],
         icons: [
           {
             src: '/icons/icon-72x72.png',
