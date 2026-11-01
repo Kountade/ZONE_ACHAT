@@ -1,19 +1,49 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
-  <title id="title">ZonAcha</title>
-  <desc id="desc">Logo ZonAcha avec lettres bleu marine et orange, et un sac de courses stylisé en guise de A.</desc>
-  <g stroke-linejoin="round" stroke-linecap="round">
-    <!-- Zon -->
-    <text x="155" y="405" font-family="Arial, DejaVu Sans, sans-serif" font-size="270" font-weight="800" letter-spacing="-12" fill="#07377C">Zon</text>
-    <!-- Shopping bag handle -->
-    <path d="M635 253 C635 176 658 143 679 143 C702 143 723 176 723 253" fill="none" stroke="#FF6500" stroke-width="11"/>
-    <!-- Bag body -->
-    <path d="M614 243 Q606 243 605 255 L588 395 Q586 414 605 414 L735 414 Q754 414 751 394 L736 255 Q735 243 724 243 Z" fill="#FF6500"/>
-    <!-- Handle attachment eyelets -->
-    <circle cx="636" cy="257" r="15" fill="#07377C" stroke="#F5F5F5" stroke-width="6"/>
-    <circle cx="720" cy="257" r="15" fill="#07377C" stroke="#F5F5F5" stroke-width="6"/>
-    <!-- White A cutout/stroke on bag -->
-    <path d="M625 398 L677 280 Q680 273 686 280 L736 398 L711 398 L680 326 L650 398 Z" fill="#FFFFFF"/>
-    <!-- cha -->
-    <text x="780" y="405" font-family="Arial, DejaVu Sans, sans-serif" font-size="270" font-weight="800" letter-spacing="-8" fill="#FF6500">cha</text>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="720" viewBox="0 0 1080 720">
+  <title>StockAcha — Votre stock, notre logistique, votre tranquillité.</title>
+  <desc>Logo vectoriel bleu marine et orange représentant un entrepôt, un colis et une flèche ascendante.</desc>
+  <defs>
+    <linearGradient id="orange" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffad00"/>
+      <stop offset="1" stop-color="#f15a00"/>
+    </linearGradient>
+    <style>
+      .navy{fill:#10458f}
+      .orange{fill:url(#orange)}
+      .word{font-family:Arial,Helvetica,sans-serif;font-weight:800;letter-spacing:-5px}
+      .tag{font-family:Arial,Helvetica,sans-serif;font-weight:500}
+    </style>
+  </defs>
+
+  <!-- Entrepôt -->
+  <path class="navy" d="M351 145 L532 56 Q540 52 548 56 L729 145 Q738 150 738 160 L738 174 Q738 180 731 180 L711 180 L711 311
+    Q711 332 691 345 L666 361 L666 190 L414 190 L414 361 L389 345 Q369 332 369 311 L369 180 L357 180 Q350 180 350 173 L350 160 Q350 150 351 145Z"/>
+  <!-- contour intérieur de l'entrepôt -->
+  <path d="M414 345 L414 166 L540 108 L666 166 L666 345" fill="none" stroke="#ffffff" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M445 166 L635 166 M445 184 L635 184" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="square"/>
+
+  <!-- Colis -->
+  <path d="M438 245 L540 209 L645 245 L645 353 L540 389 L438 353Z" class="orange" stroke="#ffffff" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M438 245 L540 282 L645 245 M540 282 L540 389" fill="none" stroke="#ffffff" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M461 238 L557 207 L580 216 L481 251Z" fill="#f59a00"/>
+  <path d="M499 259 L596 224 L624 234 L522 273Z" fill="#ffb000"/>
+  <path d="M478 258 L478 286 L498 294 L498 266" fill="#ffffff"/>
+
+  <!-- Flèche de progression -->
+  <path d="M357 260
+    C319 299 321 340 355 369
+    C415 419 520 421 610 387
+    C684 359 744 307 782 246
+    L749 246 L803 174 L803 268 L782 247
+    C740 324 671 381 590 410
+    C482 448 370 424 333 374
+    C304 335 315 293 357 260Z" class="orange"/>
+
+  <!-- Nom de marque -->
+  <text x="80" y="548" class="word" font-size="184" fill="#10458f">Stock</text>
+  <text x="568" y="548" class="word" font-size="184" fill="#f47700">Acha</text>
+
+  <!-- Signature -->
+  <text x="540" y="608" class="tag" font-size="36" text-anchor="middle" fill="#10458f">
+    Votre stock, notre logistique, votre tranquillité.
+  </text>
 </svg>
