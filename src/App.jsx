@@ -203,8 +203,7 @@ function App() {
     "/gallery",
     "/events",
     "/admissions",
-    "/services"
-
+    "/services",
   ];
 
   const noNavBar =
@@ -302,10 +301,11 @@ function App() {
                 <Route path="/dashboard-finances" element={<DashboardFinancier />} />
 
                 {/* ==================== COMPTES ==================== */}
-                <Route path="/comptes" element={<CompteListe />} />
-                <Route path="/comptes/nouveau" element={<CompteForm />} />
-                <Route path="/comptes/:id" element={<CompteDetail />} />
-                <Route path="/comptes/:id/modifier" element={<CompteForm />} />
+                {/* ✅ Correction : Routes distinctes pour éviter les doublons */}
+                <Route path="/comptes-tresorerie" element={<CompteListe />} />
+                <Route path="/comptes-tresorerie/nouveau" element={<CompteForm />} />
+                <Route path="/comptes-tresorerie/:id" element={<CompteDetail />} />
+                <Route path="/comptes-tresorerie/:id/modifier" element={<CompteForm />} />
 
                 <Route path="/comptes-comptables" element={<ComptesList />} />
                 <Route path="/comptes-comptables/nouveau" element={<CompteForm />} />
@@ -326,12 +326,14 @@ function App() {
                 <Route path="/depenses/:id/modifier" element={<DepenseForm />} />
 
                 {/* ==================== CATÉGORIES ==================== */}
+                {/* ✅ Ordre : nouveau → :id/modifier → :id */}
                 <Route path="/categories" element={<Categories />} />
                 <Route path="/categories/nouveau" element={<CategoryForm />} />
                 <Route path="/categories/:id/modifier" element={<CategoryForm />} />
                 <Route path="/categories/:id" element={<CategoryDetails />} />
 
                 {/* ==================== PRODUITS ==================== */}
+                {/* ✅ Ordre : nouveau → :id/modifier → :id */}
                 <Route path="/produits" element={<ProductsList />} />
                 <Route path="/produits/nouveau" element={<ProductForm />} />
                 <Route path="/produits/:id/modifier" element={<ProductForm />} />

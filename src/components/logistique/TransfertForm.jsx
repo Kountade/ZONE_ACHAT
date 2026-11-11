@@ -1,83 +1,32 @@
-// src/components/stock/TransfertForm.jsx
-// ============================================================
-// VERSION COMPLÈTE CORRIGÉE - Compatible pagination DRF
-// ============================================================
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import AxiosInstance from '../AxiosInstance';
 import {
-  ArrowLeft, Save, X, Plus, Package, Building2,
-  AlertCircle, CheckCircle, RefreshCw, Trash2
+  ArrowLeft, Save, Loader2, AlertCircle, CheckCircle, Package,
+  Building2, Plus, Trash2, Info, Eye, FileText, ArrowRight,
+  ArrowLeftRight, Boxes, AlertTriangle, Sparkles,
 } from 'lucide-react';
+import AxiosInstance from '../AxiosInstance';
 
-// ============================================================
-// ✅ ERROR BOUNDARY
-// ============================================================
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error, errorInfo) {
-    console.error('❌ ErrorBoundary TransfertForm:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
-          <div className="bg-white rounded-2xl shadow-lg p-8 max-w-2xl w-full">
-            <div className="flex items-center gap-3 mb-4 text-error">
-              <AlertCircle className="w-8 h-8" />
-              <h2 className="text-2xl font-bold">Erreur dans le formulaire de transfert</h2>
-            </div>
-            <pre className="bg-gray-100 p-4 rounded-lg text-sm overflow-auto max-h-64 text-red-600">
-              {this.state.error?.toString()}
-            </pre>
-            <div className="mt-6 flex gap-3">
-              <button
-                onClick={() => window.location.reload()}
-                className="btn btn-primary"
-              >
-                Recharger
-              </button>
-              <button
-                onClick={() => window.location.href = '/transferts'}
-                className="btn btn-ghost"
-              >
-                Retour aux transferts
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-// ============================================================
-// COMPOSANT PRINCIPAL
-// ============================================================
-const TransfertFormContent = () => {
+const TransfertForm = () => {
   const navigate = useNavigate();
 
-  // ✅ Guard contre le double-mount React 18
-  const hasFetchedRef = useRef(false);
+  // ============================================================
+  // ETATS
+  // ============================================================
 
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [chargementInitial, setChargementInitial] = useState(true);
+  const [chargementStocks, setChargementStocks] = useState(false);
+  const [chargement, setChargement] = useState(false);
+  const [erreur, setErreur] = useState(null);
+  const [succes, setSucces] = useState(false);
+
+  // Données
   const [warehouses, setWarehouses] = useState([]);
   const [products, setProducts] = useState([]);
   const [stockMap, setStockMap] = useState({});
-  const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
 
+  // Formulaire
   const [formData, setFormData] = useState({
     fromWarehouseId: '',
     toWarehouseId: '',
@@ -86,613 +35,964 @@ const TransfertFormContent = () => {
     notes: '',
   });
 
-  // ==========================================================
-  // UTILITAIRES
-  // ==========================================================
-  const getToken = () => localStorage.getItem('Token');
+  // ============================================================
+  // CHARGEMENT INITIAL OPTIMISE
+  // ============================================================
 
-  const showNotification = useCallback((message, type = 'success') => {
-    setNotification({ show: true, message, type });
-    setTimeout(() => setNotification(prev => ({ ...prev, show: false })), 4000);
-  }, []);
-
-  // ✅ NORMALISATION
-  const normalizeData = (data) => {
-    if (Array.isArray(data)) return data;
-    if (data && Array.isArray(data.results)) return data.results;
-    return [];
-  };
-
-  // ==========================================================
-  // CHARGEMENT DES DONNÉES INITIALES
-  // ==========================================================
   useEffect(() => {
-    // ✅ Guard contre le double-mount React 18
-    if (hasFetchedRef.current) return;
-    hasFetchedRef.current = true;
-
+    const controller = new AbortController();
     let isMounted = true;
 
-    const fetchInitialData = async () => {
-      setLoading(true);
+    const loadData = async () => {
+      const token = localStorage.getItem('Token');
+
+      if (!token) {
+        navigate('/login');
+        return;
+      }
+
+      const config = {
+        headers: { Authorization: `Token ${token}` },
+        signal: controller.signal,
+      };
+
       try {
-        const token = getToken();
-        if (!token) {
-          showNotification('Session expirée', 'error');
-          setTimeout(() => navigate('/login'), 2000);
-          return;
-        }
+        // Chargement simultané des entrepôts et produits
+        const [whResult, prResult] = await Promise.allSettled([
+          AxiosInstance.get(
+            '/warehouses/?active=true&page_size=200',
+            config
+          ),
 
-        const headers = { Authorization: `Token ${token}` };
+          (async () => {
+            try {
+              return await AxiosInstance.get(
+                '/products/brief/',
+                config
+              );
+            } catch (error) {
+              if (controller.signal.aborted) throw error;
 
-        console.log('🔍 Chargement entrepôts + produits...');
-
-        // ✅ Charger en parallèle avec .catch() pour éviter le crash global
-        const [whRes, prodRes] = await Promise.all([
-          AxiosInstance.get('/warehouses/?active=true', { headers }).catch(err => {
-            console.warn('⚠️ Erreur warehouses:', err.message);
-            return { data: [] };
-          }),
-          AxiosInstance.get('/products/?status=active&page_size=500', { headers }).catch(err => {
-            console.warn('⚠️ Erreur products:', err.message);
-            return { data: [] };
-          }),
+              return await AxiosInstance.get(
+                '/products/?status=active&page_size=500',
+                config
+              );
+            }
+          })(),
         ]);
 
         if (!isMounted) return;
 
-        const warehousesData = normalizeData(whRes.data);
-        const productsData = normalizeData(prodRes.data);
+        // Entrepôts
+        if (whResult.status === 'fulfilled') {
+          const data = whResult.value.data;
+          setWarehouses(data.results || data || []);
+        } else {
+          if (whResult.reason.response?.status === 401) {
+            navigate('/login');
+            return;
+          }
 
-        console.log('✅ Données chargées:', {
-          warehouses: warehousesData.length,
-          products: productsData.length,
-        });
+          setErreur('Impossible de charger les entrepôts.');
+        }
 
-        setWarehouses(warehousesData);
-        setProducts(productsData);
-        setLoading(false);
+        // Produits
+        if (prResult.status === 'fulfilled') {
+          const data = prResult.value.data;
+          setProducts(data.results || data || []);
+        } else {
+          if (prResult.reason.response?.status === 401) {
+            navigate('/login');
+            return;
+          }
+
+          setProducts([]);
+          setErreur('Impossible de charger les produits.');
+        }
 
       } catch (error) {
-        console.error('❌ Erreur chargement initial:', error);
-        if (isMounted) {
+        if (isMounted && !controller.signal.aborted) {
           if (error.response?.status === 401) {
-            showNotification('Session expirée', 'error');
-            setTimeout(() => navigate('/login'), 2000);
+            navigate('/login');
           } else {
-            showNotification('Erreur de chargement des données', 'error');
+            setErreur('Erreur lors du chargement des données.');
           }
-          setLoading(false);
+        }
+      } finally {
+        if (isMounted) {
+          setChargementInitial(false);
         }
       }
     };
 
-    fetchInitialData();
+    loadData();
 
-    return () => { isMounted = false; };
-  }, [navigate, showNotification]);
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [navigate]);
 
-  // ==========================================================
-  // CHARGEMENT DES STOCKS SELON L'ENTREPÔT SOURCE
-  // ==========================================================
+  // ============================================================
+  // CHARGEMENT DES STOCKS OPTIMISE
+  // ============================================================
+
   useEffect(() => {
+    const controller = new AbortController();
     let isMounted = true;
 
+    if (!formData.fromWarehouseId) {
+      setStockMap({});
+      setChargementStocks(false);
+
+      return () => {
+        isMounted = false;
+        controller.abort();
+      };
+    }
+
     const fetchStocks = async () => {
-      if (!formData.fromWarehouseId) {
-        setStockMap({});
-        return;
-      }
+      setChargementStocks(true);
+      setStockMap({});
 
       try {
-        const token = getToken();
-        const headers = { Authorization: `Token ${token}` };
+        const token = localStorage.getItem('Token');
 
-        const res = await AxiosInstance.get(
-          `/stocks/?warehouse=${formData.fromWarehouseId}&page_size=1000`,
-          { headers }
-        );
+        const config = {
+          headers: { Authorization: `Token ${token}` },
+          signal: controller.signal,
+        };
+
+        let stocksData = [];
+
+        try {
+          const res = await AxiosInstance.get(
+            `/stocks/brief/?warehouse=${formData.fromWarehouseId}`,
+            config
+          );
+
+          stocksData = res.data.results || res.data || [];
+
+        } catch (error) {
+          if (controller.signal.aborted) return;
+
+          const res = await AxiosInstance.get(
+            `/stocks/?warehouse=${formData.fromWarehouseId}&page_size=1000`,
+            config
+          );
+
+          stocksData = res.data.results || res.data || [];
+        }
 
         if (!isMounted) return;
 
-        const stocksData = normalizeData(res.data);
         const map = {};
 
-        stocksData.forEach(stock => {
-          map[stock.product] = {
-            quantity: stock.quantity || 0,
-            available_quantity: stock.available_quantity || 0,
-            product_name: stock.product_name,
-            product_code: stock.product_code,
+        stocksData.forEach((s) => {
+          map[s.product] = {
+            quantity: s.quantity || 0,
+            available_quantity: s.available_quantity || 0,
           };
         });
 
         setStockMap(map);
+
       } catch (error) {
-        console.error('❌ Erreur chargement stocks:', error);
-        if (isMounted) {
-          showNotification('Erreur lors du chargement des stocks', 'error');
+        if (isMounted && !controller.signal.aborted) {
           setStockMap({});
+        }
+      } finally {
+        if (isMounted) {
+          setChargementStocks(false);
         }
       }
     };
 
     fetchStocks();
 
-    return () => { isMounted = false; };
-  }, [formData.fromWarehouseId, showNotification]);
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [formData.fromWarehouseId]);
 
-  // ==========================================================
+  // ============================================================
   // HANDLERS
-  // ==========================================================
+  // ============================================================
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleFromWarehouseChange = (e) => {
+    setFormData((prev) => ({
+      ...prev,
+      fromWarehouseId: e.target.value,
+      items: [],
+    }));
   };
 
   const addItem = () => {
-    const newItem = {
-      id: Date.now() + Math.random(),
-      productId: '',
-      quantity: 1,
-    };
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      items: [...prev.items, newItem],
+      items: [
+        ...prev.items,
+        {
+          id: Date.now() + Math.random(),
+          productId: '',
+          quantity: 1,
+        },
+      ],
     }));
   };
 
   const removeItem = (itemId) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      items: prev.items.filter(item => item.id !== itemId),
+      items: prev.items.filter((item) => item.id !== itemId),
     }));
   };
 
   const updateItem = (itemId, field, value) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      items: prev.items.map(item =>
-        item.id === itemId ? { ...item, [field]: value } : item
+      items: prev.items.map((item) =>
+        item.id === itemId
+          ? { ...item, [field]: value }
+          : item
       ),
     }));
   };
 
-  // ==========================================================
+  // ============================================================
   // HELPERS
-  // ==========================================================
-  const getAvailableStock = useCallback((productId) => {
+  // ============================================================
+
+  const getAvailableStock = (productId) => {
     if (!formData.fromWarehouseId || !productId) return 0;
-    const stock = stockMap[productId];
-    return stock ? stock.available_quantity : 0;
-  }, [formData.fromWarehouseId, stockMap]);
 
-  const isProductSelectable = useCallback((productId) => {
-    return getAvailableStock(productId) > 0;
-  }, [getAvailableStock]);
+    return stockMap[productId]?.available_quantity || 0;
+  };
 
-  // ==========================================================
-  // SOUMISSION
-  // ==========================================================
+  const availableProducts = products.filter(
+    (p) => (stockMap[p.id]?.available_quantity || 0) > 0
+  );
+
+  const destinationWarehouses = warehouses.filter(
+    (wh) => String(wh.id) !== String(formData.fromWarehouseId)
+  );
+
+  const totalItems = formData.items.length;
+
+  const totalQuantity = formData.items.reduce(
+    (sum, item) => sum + (Number(item.quantity) || 0),
+    0
+  );
+
+  // ============================================================
+  // VALIDATION ET ENREGISTREMENT
+  // ============================================================
+
   const handleSubmit = async (e) => {
-    if (e) e.preventDefault();
-    if (submitting) return;
+    e.preventDefault();
 
-    setSubmitting(true);
-    setNotification(prev => ({ ...prev, show: false }));
+    if (chargement) return;
 
-    // Validations
+    setErreur(null);
+    setSucces(false);
+
     if (!formData.fromWarehouseId || !formData.toWarehouseId) {
-      showNotification('Veuillez sélectionner les entrepôts source et destination.', 'error');
-      setSubmitting(false);
+      setErreur('Sélectionnez les entrepôts source et destination.');
       return;
     }
 
-    if (formData.fromWarehouseId === formData.toWarehouseId) {
-      showNotification('Les entrepôts source et destination doivent être différents.', 'error');
-      setSubmitting(false);
+    if (
+      String(formData.fromWarehouseId) ===
+      String(formData.toWarehouseId)
+    ) {
+      setErreur('Les entrepôts doivent être différents.');
       return;
     }
 
     if (formData.items.length === 0) {
-      showNotification('Ajoutez au moins un article à transférer.', 'error');
-      setSubmitting(false);
+      setErreur('Ajoutez au moins un article.');
       return;
     }
 
     for (const item of formData.items) {
       if (!item.productId) {
-        showNotification('Tous les articles doivent avoir un produit sélectionné.', 'error');
-        setSubmitting(false);
+        setErreur('Sélectionnez un produit pour chaque article.');
         return;
       }
-      if (item.quantity <= 0) {
-        showNotification('Les quantités doivent être supérieures à 0.', 'error');
-        setSubmitting(false);
+
+      if (Number(item.quantity) <= 0) {
+        setErreur('Les quantités doivent être supérieures à 0.');
         return;
       }
-      const available = getAvailableStock(item.productId);
-      if (item.quantity > available) {
-        const product = products.find(p => p.id === item.productId);
-        showNotification(
-          `Stock insuffisant pour ${product?.name || 'le produit'}. Disponible : ${available}`,
-          'error'
+
+      if (Number(item.quantity) > getAvailableStock(item.productId)) {
+        const product = products.find(
+          (p) => String(p.id) === String(item.productId)
         );
-        setSubmitting(false);
+
+        setErreur(
+          `Stock insuffisant pour ${product?.name || 'le produit'}. Disponible : ${getAvailableStock(item.productId)}`
+        );
+
         return;
       }
     }
 
-    const payload = {
-      from_warehouse_id: parseInt(formData.fromWarehouseId, 10),
-      to_warehouse_id: parseInt(formData.toWarehouseId, 10),
-      items: formData.items.map(item => ({
-        product_id: parseInt(item.productId, 10),
-        quantity: parseInt(item.quantity, 10),
-      })),
-      reason: formData.reason || '',
-      notes: formData.notes || '',
-    };
+    setChargement(true);
 
     try {
-      const token = getToken();
-      if (!token) {
-        showNotification('Session expirée', 'error');
-        setTimeout(() => navigate('/login'), 2000);
-        return;
-      }
+      const token = localStorage.getItem('Token');
 
-      const headers = { Authorization: `Token ${token}` };
-      const response = await AxiosInstance.post('/transfers/', payload, { headers });
+      const headers = {
+        Authorization: `Token ${token}`,
+      };
 
-      showNotification(
-        response.data.message || 'Transfert effectué avec succès.',
-        'success'
+      await AxiosInstance.post(
+        '/transfers/',
+        {
+          from_warehouse_id: parseInt(
+            formData.fromWarehouseId,
+            10
+          ),
+
+          to_warehouse_id: parseInt(
+            formData.toWarehouseId,
+            10
+          ),
+
+          items: formData.items.map((it) => ({
+            product_id: parseInt(it.productId, 10),
+            quantity: parseInt(it.quantity, 10),
+          })),
+
+          reason: formData.reason || '',
+          notes: formData.notes || '',
+        },
+        { headers }
       );
 
-      // Réinitialisation du formulaire
-      setFormData(prev => ({
-        ...prev,
-        items: [],
-        reason: '',
-        notes: '',
-      }));
+      setSucces(true);
 
-      // ✅ Redirection après succès
       setTimeout(() => {
         navigate('/transferts');
-      }, 2000);
+      }, 1200);
 
     } catch (error) {
-      console.error('❌ Erreur transfert:', error);
-
-      let errorMessage = 'Erreur lors du transfert.';
+      let msg = 'Erreur lors du transfert.';
 
       if (error.response?.data) {
         const data = error.response.data;
 
         if (typeof data === 'string') {
-          errorMessage = data;
+          msg = data;
         } else if (data.detail) {
-          errorMessage = data.detail;
+          msg = data.detail;
         } else if (data.error) {
-          errorMessage = data.error;
+          msg = data.error;
         } else if (typeof data === 'object') {
-          const messages = [];
-          Object.entries(data).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-              messages.push(`${key}: ${value.join(', ')}`);
-            } else if (typeof value === 'string') {
-              messages.push(`${key}: ${value}`);
-            }
-          });
-          if (messages.length > 0) {
-            errorMessage = messages.join(' | ');
-          }
+          msg = Object.entries(data)
+            .map(([k, v]) =>
+              `${k}: ${Array.isArray(v) ? v.join(', ') : v}`
+            )
+            .join(' | ');
         }
       }
 
-      showNotification(errorMessage, 'error');
+      setErreur(msg);
+
     } finally {
-      setSubmitting(false);
+      setChargement(false);
     }
   };
 
-  // ==========================================================
-  // RENDU : CHARGEMENT
-  // ==========================================================
-  if (loading) {
+  const getWarehouseName = (id) => {
+    const wh = warehouses.find(
+      (w) => String(w.id) === String(id)
+    );
+
+    return wh ? `${wh.name} (${wh.code})` : '—';
+  };
+
+  // ============================================================
+  // CHARGEMENT INITIAL
+  // ============================================================
+
+  if (chargementInitial) {
     return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
-        <div className="text-center space-y-4">
-          <div className="loading loading-spinner loading-lg text-primary w-12 h-12"></div>
-          <p className="text-base font-semibold text-gray-500">Chargement du formulaire...</p>
+      <div className="flex items-center justify-center py-20 w-full">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-3" />
+          <p className="text-sm text-base-content/60">
+            Chargement...
+          </p>
         </div>
       </div>
     );
   }
 
-  // ==========================================================
-  // RENDU PRINCIPAL
-  // ==========================================================
-  return (
-    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 bg-gray-50 min-h-screen">
-      {/* Notification */}
-      {notification.show && (
-        <div className="fixed top-20 right-4 z-50">
-          <div className={`alert ${notification.type === 'success' ? 'alert-success' : 'alert-error'} shadow-xl rounded-xl`}>
-            <div className="flex items-center gap-2">
-              {notification.type === 'success'
-                ? <CheckCircle className="w-4 h-4" />
-                : <AlertCircle className="w-4 h-4" />}
-              <span className="font-medium">{notification.message}</span>
-            </div>
-            <button
-              className="btn btn-ghost btn-xs btn-circle"
-              onClick={() => setNotification(prev => ({ ...prev, show: false }))}
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-        </div>
-      )}
+  // ============================================================
+  // RENDER
+  // ============================================================
 
-      {/* En-tête */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-primary/10 via-primary/5 to-transparent rounded-2xl p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <button
-                onClick={() => navigate('/transferts')}
-                className="btn btn-ghost btn-sm btn-circle"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <div className="p-2 bg-primary/10 rounded-xl">
-                <Package className="w-7 h-7 text-primary" />
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-black text-primary">
-                Nouveau transfert
-              </h1>
+  return (
+    <div className="w-full min-h-screen bg-base-200/40 pb-24">
+
+      {/* EN-TÊTE */}
+      <div className="w-full sticky top-0 z-20 bg-base-100 border-b border-base-300 shadow-sm">
+        <div className="flex items-center gap-4 px-6 py-3">
+
+          <button
+            onClick={() => navigate('/transferts')}
+            className="btn btn-ghost btn-sm btn-circle"
+            type="button"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+
+          <div className="flex-1 min-w-0">
+            <div className="text-xs text-base-content/50 uppercase mb-0.5">
+              Stocks / Transferts / <span className="text-primary">Création</span>
             </div>
-            <p className="text-sm text-gray-500 ml-1">
-              Transférez du stock d'un entrepôt à un autre
-            </p>
+
+            <h1 className="text-xl font-bold flex items-center gap-2 truncate">
+              <ArrowLeftRight className="w-5 h-5 text-primary" />
+              Nouveau transfert
+            </h1>
           </div>
+
+          <div className="badge badge-primary hidden sm:flex">
+            Création
+          </div>
+
         </div>
       </div>
 
-      {/* Formulaire */}
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Sélection des entrepôts */}
-        <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
-          <h3 className="text-lg font-bold flex items-center gap-2 mb-4">
-            <Building2 className="w-5 h-5 text-primary" />
-            Entrepôts
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text font-semibold">
-                  Entrepôt source <span className="text-error">*</span>
-                </span>
-              </label>
-              <select
-                name="fromWarehouseId"
-                value={formData.fromWarehouseId}
-                onChange={handleChange}
-                className="select select-bordered w-full"
-                required
-              >
-                <option value="">-- Sélectionner --</option>
-                {warehouses.map(wh => (
-                  <option key={wh.id} value={wh.id}>
-                    {wh.name} ({wh.code})
-                  </option>
-                ))}
-              </select>
-              {warehouses.length === 0 && (
-                <p className="text-warning text-xs mt-1">⚠️ Aucun entrepôt actif</p>
-              )}
-            </div>
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text font-semibold">
-                  Entrepôt destination <span className="text-error">*</span>
-                </span>
-              </label>
-              <select
-                name="toWarehouseId"
-                value={formData.toWarehouseId}
-                onChange={handleChange}
-                className="select select-bordered w-full"
-                required
-              >
-                <option value="">-- Sélectionner --</option>
-                {warehouses
-                  .filter(wh => String(wh.id) !== String(formData.fromWarehouseId))
-                  .map(wh => (
-                    <option key={wh.id} value={wh.id}>
-                      {wh.name} ({wh.code})
-                    </option>
-                  ))}
-              </select>
-            </div>
-          </div>
+      {/* MESSAGES */}
+      {succes && (
+        <div className="w-full alert alert-success rounded-none py-2">
+          <CheckCircle className="w-5 h-5" />
+          <span>Transfert effectué avec succès !</span>
         </div>
+      )}
 
-        {/* Liste des articles */}
-        <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold flex items-center gap-2">
-              <Package className="w-5 h-5 text-primary" />
-              Articles à transférer
-            </h3>
-            <button
-              type="button"
-              onClick={addItem}
-              className="btn btn-sm btn-primary gap-2"
-              disabled={!formData.fromWarehouseId}
-            >
-              <Plus className="w-4 h-4" /> Ajouter un article
-            </button>
-          </div>
+      {erreur && (
+        <div className="w-full alert alert-error rounded-none py-2">
+          <AlertCircle className="w-5 h-5" />
+          <span>{erreur}</span>
+        </div>
+      )}
 
-          {!formData.fromWarehouseId && (
-            <div className="alert alert-info">
-              <AlertCircle className="w-5 h-5" />
-              <span>Sélectionnez d'abord un entrepôt source pour voir les produits disponibles.</span>
-            </div>
-          )}
+      <form onSubmit={handleSubmit}>
 
-          {formData.fromWarehouseId && formData.items.length === 0 && (
-            <div className="text-center py-8 text-gray-400">
-              <Package className="w-12 h-12 mx-auto mb-2 opacity-30" />
-              <p>Aucun article. Cliquez sur "Ajouter un article".</p>
-            </div>
-          )}
+        <div className="w-full grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
 
-          {formData.items.length > 0 && (
-            <div className="space-y-3">
-              {formData.items.map((item) => {
-                const available = getAvailableStock(item.productId);
-                return (
-                  <div
-                    key={item.id}
-                    className="flex flex-wrap items-end gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200"
-                  >
-                    <div className="flex-1 min-w-[150px]">
-                      <label className="label-text text-xs font-medium">
-                        Produit <span className="text-error">*</span>
+          {/* COLONNE PRINCIPALE */}
+          <div className="lg:col-span-2 space-y-6">
+
+            {/* SECTION 1 : ENTREPOTS */}
+            <div className="card bg-base-100 shadow-sm border border-base-300">
+              <div className="card-body p-0">
+
+                <div className="px-5 py-3 border-b bg-base-200/30 flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-primary" />
+                  <h2 className="font-semibold text-sm">Entrepôts</h2>
+                </div>
+
+                <div className="p-5">
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-end">
+
+                    {/* SOURCE */}
+                    <div className="form-control w-full">
+                      <label className="label py-0 pb-1.5">
+                        <span className="label-text text-sm font-medium">
+                          <ArrowLeftRight className="w-3 h-3 mr-1 inline" />
+                          Source <span className="text-error">*</span>
+                        </span>
                       </label>
+
                       <select
-                        value={item.productId}
-                        onChange={(e) => updateItem(item.id, 'productId', e.target.value)}
+                        name="fromWarehouseId"
                         className="select select-bordered w-full"
+                        value={formData.fromWarehouseId}
+                        onChange={handleFromWarehouseChange}
                         required
                       >
-                        <option value="">-- Choisir --</option>
-                        {products
-                          .filter(p => isProductSelectable(p.id))
-                          .map(p => (
-                            <option key={p.id} value={p.id}>
-                              {p.code} - {p.name} (stock: {getAvailableStock(p.id)})
-                            </option>
-                          ))}
+                        <option value="">— Sélectionner —</option>
+
+                        {warehouses.map((wh) => (
+                          <option key={wh.id} value={wh.id}>
+                            {wh.name} ({wh.code})
+                          </option>
+                        ))}
                       </select>
                     </div>
-                    <div className="w-28">
-                      <label className="label-text text-xs font-medium">
-                        Qté <span className="text-error">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max={available || undefined}
-                        value={item.quantity}
-                        onChange={(e) =>
-                          updateItem(item.id, 'quantity', parseInt(e.target.value, 10) || 0)
-                        }
-                        className="input input-bordered w-full"
-                        required
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {item.productId && (
-                        <span
-                          className={`text-xs ${
-                            item.quantity > available ? 'text-error font-bold' : 'text-gray-500'
-                          }`}
-                        >
-                          Dispo: {available}
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => removeItem(item.id)}
-                        className="btn btn-ghost btn-sm btn-circle text-error"
-                        title="Supprimer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
 
-        {/* Champs supplémentaires */}
-        <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text font-semibold">Motif</span>
-              </label>
-              <input
-                name="reason"
-                value={formData.reason}
-                onChange={handleChange}
-                className="input input-bordered"
-                placeholder="Ex: Réapprovisionnement magasin"
-              />
+                    <div className="hidden md:flex items-center justify-center pb-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <ArrowRight className="w-5 h-5 text-primary" />
+                      </div>
+                    </div>
+
+                    {/* DESTINATION */}
+                    <div className="form-control w-full">
+                      <label className="label py-0 pb-1.5">
+                        <span className="label-text text-sm font-medium">
+                          <ArrowRight className="w-3 h-3 mr-1 inline" />
+                          Destination <span className="text-error">*</span>
+                        </span>
+                      </label>
+
+                      <select
+                        name="toWarehouseId"
+                        className="select select-bordered w-full"
+                        value={formData.toWarehouseId}
+                        onChange={handleChange}
+                        required
+                      >
+                        <option value="">— Sélectionner —</option>
+
+                        {destinationWarehouses.map((wh) => (
+                          <option key={wh.id} value={wh.id}>
+                            {wh.name} ({wh.code})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text font-semibold">Notes</span>
-              </label>
-              <textarea
-                name="notes"
-                value={formData.notes}
-                onChange={handleChange}
-                className="textarea textarea-bordered"
-                rows="2"
-                placeholder="Informations complémentaires"
-              />
+
+            {/* SECTION 2 : ARTICLES */}
+            <div className="card bg-base-100 shadow-sm border border-base-300">
+              <div className="card-body p-0">
+
+                <div className="px-5 py-3 border-b bg-base-200/30 flex items-center justify-between">
+
+                  <div className="flex items-center gap-2">
+                    <Package className="w-4 h-4 text-primary" />
+                    <h2 className="font-semibold text-sm">
+                      Articles à transférer
+                    </h2>
+
+                    {chargementStocks && (
+                      <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={addItem}
+                    className="btn btn-sm btn-primary gap-1"
+                    disabled={
+                      !formData.fromWarehouseId ||
+                      chargementStocks
+                    }
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span className="hidden sm:inline">Ajouter</span>
+                  </button>
+
+                </div>
+
+                <div className="p-5 space-y-4">
+
+                  {!formData.fromWarehouseId && (
+                    <div className="alert alert-info py-2">
+                      <Info className="w-4 h-4" />
+                      <span className="text-xs">
+                        Sélectionnez d'abord un entrepôt source.
+                      </span>
+                    </div>
+                  )}
+
+                  {formData.fromWarehouseId && chargementStocks && (
+                    <div className="text-center py-8 text-base-content/60">
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-primary" />
+                      <p className="text-sm">Chargement des stocks...</p>
+                    </div>
+                  )}
+
+                  {formData.fromWarehouseId &&
+                    !chargementStocks &&
+                    availableProducts.length === 0 && (
+                      <div className="alert alert-warning py-2">
+                        <AlertTriangle className="w-4 h-4" />
+                        <span className="text-xs">
+                          Aucun produit disponible dans cet entrepôt.
+                        </span>
+                      </div>
+                    )}
+
+                  {formData.fromWarehouseId &&
+                    !chargementStocks &&
+                    formData.items.length === 0 &&
+                    availableProducts.length > 0 && (
+                      <div className="text-center py-8 text-base-content/40">
+                        <Boxes className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                        <p className="text-sm">
+                          Cliquez sur "Ajouter" pour commencer.
+                        </p>
+                      </div>
+                    )}
+
+                  {/* ARTICLES */}
+                  {formData.items.map((item, index) => {
+                    const available = getAvailableStock(item.productId);
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="card bg-base-200/30 border border-base-300"
+                      >
+                        <div className="card-body p-3">
+
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold text-base-content/60">
+                              Article #{index + 1}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => removeItem(item.id)}
+                              className="btn btn-ghost btn-xs btn-circle text-error"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-end">
+
+                            <div className="form-control w-full">
+                              <label className="label py-0 pb-1">
+                                <span className="label-text text-xs font-medium">
+                                  Produit <span className="text-error">*</span>
+                                </span>
+                              </label>
+
+                              <select
+                                value={item.productId}
+                                onChange={(e) =>
+                                  updateItem(
+                                    item.id,
+                                    'productId',
+                                    e.target.value
+                                  )
+                                }
+                                className="select select-bordered select-sm w-full"
+                                required
+                              >
+                                <option value="">— Choisir —</option>
+
+                                {availableProducts.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.code} - {p.name} (stock : {getAvailableStock(p.id)})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="form-control w-full sm:w-28">
+                              <label className="label py-0 pb-1">
+                                <span className="label-text text-xs font-medium">
+                                  Qté <span className="text-error">*</span>
+                                </span>
+                              </label>
+
+                              <input
+                                type="number"
+                                min="1"
+                                max={available || undefined}
+                                value={item.quantity}
+                                onChange={(e) =>
+                                  updateItem(
+                                    item.id,
+                                    'quantity',
+                                    parseInt(e.target.value, 10) || 0
+                                  )
+                                }
+                                className={`input input-bordered input-sm w-full font-mono ${
+                                  item.productId && item.quantity > available
+                                    ? 'input-error'
+                                    : ''
+                                }`}
+                                required
+                              />
+                            </div>
+
+                          </div>
+
+                          {item.productId && (
+                            <div className="mt-2 text-xs">
+                              {item.quantity > available ? (
+                                <span className="text-error flex items-center gap-1 font-medium">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  Stock insuffisant (dispo : {available})
+                                </span>
+                              ) : (
+                                <span className="text-base-content/60">
+                                  Disponible : {available}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                </div>
+              </div>
             </div>
+
+            {/* SECTION 3 : MOTIF ET NOTES */}
+            <div className="card bg-base-100 shadow-sm border border-base-300">
+              <div className="card-body p-0">
+
+                <div className="px-5 py-3 border-b bg-base-200/30 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-primary" />
+                  <h2 className="font-semibold text-sm">
+                    Informations complémentaires
+                  </h2>
+                </div>
+
+                <div className="p-5 space-y-4">
+
+                  <div className="form-control w-full">
+                    <label className="label py-0 pb-1.5">
+                      <span className="label-text text-sm font-medium">
+                        Motif
+                      </span>
+                    </label>
+
+                    <input
+                      type="text"
+                      name="reason"
+                      className="input input-bordered w-full"
+                      value={formData.reason}
+                      onChange={handleChange}
+                      maxLength="200"
+                      placeholder="Ex : Réapprovisionnement magasin"
+                    />
+                  </div>
+
+                  <div className="form-control w-full">
+                    <label className="label py-0 pb-1.5">
+                      <span className="label-text text-sm font-medium">
+                        Notes
+                      </span>
+                    </label>
+
+                    <textarea
+                      name="notes"
+                      className="textarea textarea-bordered w-full"
+                      value={formData.notes}
+                      onChange={handleChange}
+                      rows="3"
+                      placeholder="Informations complémentaires..."
+                    />
+                  </div>
+
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* COLONNE APERCU */}
+          <div className="lg:col-span-1 space-y-6">
+
+            <div className="card bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 shadow-sm">
+              <div className="card-body">
+
+                <div className="flex items-center gap-2 mb-3">
+                  <Eye className="w-4 h-4 text-primary" />
+                  <h3 className="font-semibold text-sm">Aperçu</h3>
+                </div>
+
+                <div className="bg-base-100 rounded-xl p-4 border border-base-300">
+
+                  <div className="space-y-2 mb-3">
+
+                    <div className="flex items-center gap-2 text-xs">
+                      <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                        <ArrowLeftRight className="w-3 h-3 text-primary" />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] text-base-content/50 uppercase">
+                          Source
+                        </p>
+
+                        <p className="font-medium truncate text-xs">
+                          {formData.fromWarehouseId
+                            ? getWarehouseName(formData.fromWarehouseId)
+                            : '—'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="ml-3 border-l-2 border-dashed border-primary/30 h-4"></div>
+
+                    <div className="flex items-center gap-2 text-xs">
+                      <div className="w-6 h-6 rounded-full bg-success/20 flex items-center justify-center flex-shrink-0">
+                        <ArrowRight className="w-3 h-3 text-success" />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] text-base-content/50 uppercase">
+                          Destination
+                        </p>
+
+                        <p className="font-medium truncate text-xs">
+                          {formData.toWarehouseId
+                            ? getWarehouseName(formData.toWarehouseId)
+                            : '—'}
+                        </p>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <div className="divider my-3"></div>
+
+                  <div className="space-y-2 text-xs">
+
+                    <div className="flex justify-between">
+                      <span className="text-base-content/60">
+                        Articles :
+                      </span>
+                      <span className="font-mono font-bold">
+                        {totalItems}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span className="text-base-content/60">
+                        Quantité totale :
+                      </span>
+                      <span className="font-mono font-bold text-primary">
+                        {totalQuantity}
+                      </span>
+                    </div>
+
+                  </div>
+
+                  {formData.reason && (
+                    <>
+                      <div className="divider my-3"></div>
+
+                      <div className="text-xs">
+                        <p className="text-base-content/60 mb-1">
+                          Motif :
+                        </p>
+                        <p className="font-medium line-clamp-2">
+                          {formData.reason}
+                        </p>
+                      </div>
+                    </>
+                  )}
+
+                </div>
+              </div>
+            </div>
+
+            {/* CONSEIL FIFO */}
+            <div className="card bg-info/5 border border-info/20">
+              <div className="card-body p-4">
+                <div className="flex items-start gap-2">
+                  <Info className="w-4 h-4 text-info flex-shrink-0 mt-0.5" />
+
+                  <div className="text-xs">
+                    <p className="font-medium text-info mb-1">
+                      Méthode FIFO
+                    </p>
+
+                    <p className="text-base-content/70">
+                      Les lots les plus proches de l'expiration sont transférés en priorité.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* CONSEIL */}
+            <div className="card bg-warning/5 border border-warning/20">
+              <div className="card-body p-4">
+                <div className="flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+
+                  <div className="text-xs">
+                    <p className="font-medium text-warning mb-1">
+                      Conseil
+                    </p>
+
+                    <p className="text-base-content/70">
+                      Un transfert est <strong>irréversible</strong> une fois validé.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex flex-wrap gap-3 justify-end">
-          <button
-            type="button"
-            onClick={() => navigate('/transferts')}
-            className="btn btn-ghost gap-2"
-            disabled={submitting}
-          >
-            <X className="w-4 h-4" /> Annuler
-          </button>
-          <button
-            type="submit"
-            className="btn btn-primary gap-2"
-            disabled={submitting || warehouses.length === 0}
-          >
-            {submitting ? (
-              <>
-                <span className="loading loading-spinner loading-sm"></span>
-                Envoi...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" /> Valider le transfert
-              </>
-            )}
-          </button>
+        {/* BARRE STICKY */}
+        <div className="fixed bottom-0 left-0 right-0 z-30 bg-base-100 border-t border-base-300 shadow-lg lg:pl-72">
+
+          <div className="flex items-center justify-end gap-3 px-6 py-3">
+
+            <button
+              type="button"
+              onClick={() => navigate('/transferts')}
+              className="btn btn-ghost"
+              disabled={chargement}
+            >
+              Annuler
+            </button>
+
+            <button
+              type="submit"
+              className="btn btn-primary gap-2 min-w-[180px]"
+              disabled={
+                chargement ||
+                chargementInitial ||
+                warehouses.length === 0 ||
+                chargementStocks
+              }
+            >
+              {chargement ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Enregistrement...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Valider le transfert
+                </>
+              )}
+            </button>
+
+          </div>
         </div>
+
       </form>
     </div>
   );
 };
-
-// ============================================================
-// WRAPPER avec ErrorBoundary
-// ============================================================
-const TransfertForm = () => (
-  <ErrorBoundary>
-    <TransfertFormContent />
-  </ErrorBoundary>
-);
 
 export default TransfertForm;
