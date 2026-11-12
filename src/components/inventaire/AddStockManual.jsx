@@ -1,18 +1,17 @@
-// src/components/products/AddStockManual.jsx
+// src/components/inventaire/AddStockManual.jsx
 // ============================================================
-// AJOUT MANUEL DE STOCK - VERSION CORRIGEE
+// VERSION OPTIMISÉE - Chargement rapide (inspiré de ClientForm/DevisForm)
 // ============================================================
 
-import React, { useState, useEffect, useCallback } from 'react';
-import AxiosInstance from '../AxiosInstance';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  PackagePlus, Save, X, AlertCircle, CheckCircle,
-  Package, Warehouse, Calendar, DollarSign, FileText,
-  Loader2, ArrowLeft, Tag, Hash,
-  BadgeDollarSign, PenLine, PlusCircle, Building2,
-  Box, Layers, Clock, Info, Shield, Check
+  ArrowLeft, Save, Loader2, AlertCircle, CheckCircle, PackagePlus,
+  Package, Building2, Calendar, DollarSign, FileText, Info, Eye,
+  Tag, Hash, Box, Layers, Clock, Shield, Check, PlusCircle,
+  BadgeDollarSign, PenLine, AlertTriangle, X,
 } from 'lucide-react';
+import AxiosInstance from '../AxiosInstance';
 
 // ============================================================
 // ERROR BOUNDARY
@@ -22,25 +21,22 @@ class ErrorBoundary extends React.Component {
     super(props);
     this.state = { hasError: false, error: null };
   }
-
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
   }
-
   componentDidCatch(error, errorInfo) {
     console.error('ErrorBoundary AddStockManual:', error, errorInfo);
   }
-
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
-          <div className="bg-white rounded-2xl shadow-lg p-8 max-w-2xl w-full">
+        <div className="min-h-screen bg-base-200/40 p-6 flex items-center justify-center">
+          <div className="bg-base-100 rounded-2xl shadow-lg p-8 max-w-2xl w-full border border-base-300">
             <div className="flex items-center gap-3 mb-4 text-error">
               <AlertCircle className="w-8 h-8" />
-              <h2 className="text-2xl font-bold">Erreur dans le formulaire d'ajout</h2>
+              <h2 className="text-2xl font-bold">Erreur dans le formulaire</h2>
             </div>
-            <pre className="bg-gray-100 p-4 rounded-lg text-sm overflow-auto max-h-64 text-red-600">
+            <pre className="bg-base-200 p-4 rounded-lg text-sm overflow-auto max-h-64 text-error">
               {this.state.error?.toString()}
             </pre>
             <div className="mt-6 flex gap-3">
@@ -70,16 +66,20 @@ class ErrorBoundary extends React.Component {
 // ============================================================
 const AddStockManualContent = () => {
   const navigate = useNavigate();
-  const token = localStorage.getItem('Token');
 
-  const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  // États
+  const [chargementInitial, setChargementInitial] = useState(true);
+  const [chargement, setChargement] = useState(false);
+  const [erreur, setErreur] = useState(null);
+  const [succes, setSucces] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  // Données
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [notification, setNotification] = useState(null);
-  const [errors, setErrors] = useState({});
 
+  // Formulaire
   const [formData, setFormData] = useState({
     product_id: '',
     warehouse_id: '',
@@ -90,12 +90,11 @@ const AddStockManualContent = () => {
     purchase_price: '',
     selling_price: '',
     notes: '',
-    reason: 'Ajout manuel'
+    reason: 'Ajout manuel',
   });
 
-  // ============================================================
-  // NORMALISATION DES REPONSES
-  // ============================================================
+  const getToken = () => localStorage.getItem('Token');
+
   const normalizeData = (data) => {
     if (Array.isArray(data)) return data;
     if (data && Array.isArray(data.results)) return data.results;
@@ -103,90 +102,103 @@ const AddStockManualContent = () => {
   };
 
   // ============================================================
-  // NOTIFICATION
-  // ============================================================
-  const showNotification = useCallback((message, type = 'success') => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 4000);
-  }, []);
-
-  // ============================================================
-  // CHARGEMENT DES DONNEES
+  // CHARGEMENT INITIAL OPTIMISÉ
+  // - Pas de useRef : évite le blocage du second effet en StrictMode
+  // - AbortController : annule les requêtes si le composant est démonté
+  // - Chargement PARALLÈLE au lieu de séquentiel
   // ============================================================
   useEffect(() => {
     let isMounted = true;
+    const controller = new AbortController();
 
-    const loadData = async () => {
+    const init = async () => {
+      setChargementInitial(true);
+      setErreur(null);
+
+      const token = getToken();
       if (!token) {
-        showNotification('Session expiree', 'error');
-        setTimeout(() => navigate('/login'), 2000);
+        navigate('/login');
         return;
       }
 
-      setLoading(true);
-      try {
-        console.log('Chargement produits + entrepots...');
+      const headers = { Authorization: `Token ${token}` };
 
-        const [productsRes, warehousesRes] = await Promise.all([
-          // Charger TOUS les produits actifs
-          AxiosInstance.get('/products/?status=active&page_size=5000', {
-            headers: { Authorization: `Token ${token}` }
-          }).catch(err => {
-            console.warn('Erreur products:', err.message);
-            return { data: [] };
+      try {
+        // ✅ CHARGEMENT EN PARALLÈLE
+        const [whResult, prResult] = await Promise.allSettled([
+          // 1. Warehouses (rapide)
+          AxiosInstance.get('/warehouses/?active=true&page_size=200', {
+            headers,
+            signal: controller.signal,
           }),
-          // Charger tous les entrepots
-          AxiosInstance.get('/warehouses/?active=true&page_size=5000', {
-            headers: { Authorization: `Token ${token}` }
-          }).catch(err => {
-            console.warn('Erreur warehouses:', err.message);
-            return { data: [] };
-          })
+          // 2. Products (essai brief/, sinon fallback)
+          AxiosInstance.get('/products/brief/', {
+            headers,
+            signal: controller.signal,
+          }),
         ]);
 
         if (!isMounted) return;
 
-        const productsData = normalizeData(productsRes.data);
-        const warehousesData = normalizeData(warehousesRes.data);
+        // Traitement des résultats
+        if (whResult.status === 'fulfilled') {
+          setWarehouses(normalizeData(whResult.value.data));
+        }
 
-        console.log('Donnees chargees:', {
-          products: productsData.length,
-          warehouses: warehousesData.length
-        });
+        if (prResult.status === 'fulfilled') {
+          setProducts(normalizeData(prResult.value.data));
+        } else {
+          // Fallback si /brief/ n'existe pas
+          try {
+            const fallbackRes = await AxiosInstance.get(
+              '/products/?status=active&page_size=500',
+              { headers, signal: controller.signal }
+            );
+            if (isMounted) {
+              setProducts(normalizeData(fallbackRes.data));
+            }
+          } catch (fallbackErr) {
+            if (fallbackErr.name === 'CanceledError') return;
+            if (isMounted) setProducts([]);
+          }
+        }
+      } catch (err) {
+        if (!isMounted || err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
+          return;
+        }
 
-        setProducts(productsData);
-        setWarehouses(warehousesData);
-
-      } catch (error) {
-        console.error('Erreur chargement donnees:', error);
-        if (isMounted) {
-          showNotification('Erreur de chargement des donnees', 'error');
+        if (err.response?.status === 401) {
+          navigate('/login');
+        } else {
+          setErreur('Erreur de chargement des données. Veuillez réessayer.');
         }
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) setChargementInitial(false);
       }
     };
 
-    loadData();
+    init();
 
-    return () => { isMounted = false; };
-  }, [token, navigate, showNotification]);
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [navigate]);
 
   // ============================================================
-  // MISE A JOUR DU PRODUIT SELECTIONNE
+  // MISE À JOUR DU PRODUIT SÉLECTIONNÉ
   // ============================================================
   useEffect(() => {
     if (!formData.product_id) {
       setSelectedProduct(null);
       return;
     }
-
-    const productId = parseInt(formData.product_id);
-    const product = products.find(p => p.id === productId);
+    const productId = parseInt(formData.product_id, 10);
+    const product = products.find((p) => p.id === productId);
     setSelectedProduct(product || null);
 
     if (product) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         purchase_price: prev.purchase_price || product.purchase_price || '',
         selling_price: prev.selling_price || product.selling_price || '',
@@ -199,10 +211,9 @@ const AddStockManualContent = () => {
   // ============================================================
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
+    if (erreur) setErreur(null);
   };
 
   // ============================================================
@@ -210,37 +221,47 @@ const AddStockManualContent = () => {
   // ============================================================
   const validate = () => {
     const newErrors = {};
-    if (!formData.product_id) newErrors.product_id = 'Veuillez selectionner un produit';
-    if (!formData.warehouse_id) newErrors.warehouse_id = 'Veuillez selectionner un entrepot';
-    if (!formData.quantity || parseInt(formData.quantity) <= 0) {
-      newErrors.quantity = 'La quantite doit etre superieure a 0';
+    if (!formData.product_id) newErrors.product_id = 'Sélectionnez un produit';
+    if (!formData.warehouse_id) newErrors.warehouse_id = 'Sélectionnez un entrepôt';
+    if (!formData.quantity || parseInt(formData.quantity, 10) <= 0) {
+      newErrors.quantity = 'La quantité doit être supérieure à 0';
     }
     if (selectedProduct?.has_expiry && !formData.expiry_date) {
-      newErrors.expiry_date = 'Ce produit a une date d\'expiration obligatoire';
+      newErrors.expiry_date = "Date d'expiration requise pour ce produit";
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   // ============================================================
-  // SOUMISSION
+  // SUBMIT
   // ============================================================
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
-    if (submitting) return;
+    if (chargement) return;
 
     if (!validate()) {
-      showNotification('Veuillez corriger les erreurs', 'error');
+      setErreur('Veuillez corriger les champs en rouge.');
       return;
     }
 
-    setSubmitting(true);
+    const token = getToken();
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+
+    setChargement(true);
+    setErreur(null);
+    setSucces(false);
+
     try {
-      // Preparer les donnees (enlever les champs vides)
+      const headers = { Authorization: `Token ${token}` };
+
       const payload = {
-        product_id: parseInt(formData.product_id),
-        warehouse_id: parseInt(formData.warehouse_id),
-        quantity: parseInt(formData.quantity),
+        product_id: parseInt(formData.product_id, 10),
+        warehouse_id: parseInt(formData.warehouse_id, 10),
+        quantity: parseInt(formData.quantity, 10),
         reason: formData.reason || 'Ajout manuel',
       };
 
@@ -251,420 +272,600 @@ const AddStockManualContent = () => {
       if (formData.selling_price) payload.selling_price = parseFloat(formData.selling_price);
       if (formData.notes?.trim()) payload.notes = formData.notes.trim();
 
-      console.log('Envoi add_stock_manual:', payload);
+      await AxiosInstance.post('/products/add_stock_manual/', payload, { headers });
 
-      const response = await AxiosInstance.post(
-        '/products/add_stock_manual/',
-        payload,
-        { headers: { Authorization: `Token ${token}` } }
-      );
-
-      console.log('Reponse:', response.data);
-
-      showNotification(
-        response.data.message || 'Stock ajoute avec succes',
-        'success'
-      );
-
-      setTimeout(() => navigate('/stocks'), 2000);
-
+      setSucces(true);
+      window.setTimeout(() => navigate('/stocks'), 1200);
     } catch (error) {
-      console.error('Erreur soumission:', error);
-
-      let errorMessage = 'Erreur lors de l\'ajout';
-
-      if (error.response?.data) {
-        const data = error.response.data;
-
-        if (typeof data === 'string') {
-          errorMessage = data;
-        } else if (data.detail) {
-          errorMessage = data.detail;
-        } else if (data.error) {
-          errorMessage = data.error;
-        } else if (typeof data === 'object') {
-          const newErrors = {};
-          const messages = [];
-          Object.keys(data).forEach(key => {
-            const val = Array.isArray(data[key]) ? data[key][0] : data[key];
-            newErrors[key] = val;
-            messages.push(`${key}: ${val}`);
-          });
-          setErrors(newErrors);
-          if (messages.length > 0) errorMessage = messages.join(' | ');
-        }
+      if (error.response?.status === 401) {
+        navigate('/login');
+        return;
       }
 
-      showNotification(errorMessage, 'error');
+      let msg = "Erreur lors de l'ajout";
+      const data = error.response?.data;
+
+      if (typeof data === 'string') {
+        msg = data;
+      } else if (data?.detail) {
+        msg = data.detail;
+      } else if (data?.error) {
+        msg = data.error;
+      } else if (data && typeof data === 'object') {
+        const newErrors = {};
+        const messages = [];
+        Object.keys(data).forEach((key) => {
+          const val = Array.isArray(data[key]) ? data[key][0] : data[key];
+          newErrors[key] = val;
+          messages.push(`${key}: ${val}`);
+        });
+        setErrors(newErrors);
+        if (messages.length > 0) msg = messages.join(' | ');
+      }
+
+      setErreur(msg);
     } finally {
-      setSubmitting(false);
+      setChargement(false);
     }
   };
 
   // ============================================================
-  // RENDU
+  // HELPERS
   // ============================================================
-  if (loading) {
+  const formaterMontant = (m) =>
+    new Intl.NumberFormat('fr-FR').format(Math.round(Number(m || 0))) + ' CFA';
+
+  const getWarehouseName = (id) => {
+    const wh = warehouses.find((w) => String(w.id) === String(id));
+    return wh ? `${wh.name} (${wh.code})` : '—';
+  };
+
+  const quantite = parseInt(formData.quantity, 10) || 0;
+  const prixAchat = parseFloat(formData.purchase_price) || 0;
+  const valeurTotale = quantite * prixAchat;
+
+  // ============================================================
+  // LOADER INITIAL
+  // ============================================================
+  if (chargementInitial) {
     return (
-      <div className="flex items-center justify-center h-full w-full bg-gray-50">
-        <div className="text-center space-y-4">
-          <Loader2 className="animate-spin text-primary w-14 h-14 mx-auto" />
-          <p className="text-base font-medium text-gray-500">Chargement des donnees...</p>
+      <div className="flex items-center justify-center py-20 w-full">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-3" />
+          <p className="text-sm text-base-content/60">Chargement du formulaire...</p>
         </div>
       </div>
     );
   }
 
+  // ============================================================
+  // RENDER
+  // ============================================================
   return (
-    <div className="w-full h-full bg-gray-50 overflow-hidden">
-      {/* Notification */}
-      {notification && (
-        <div className="fixed top-20 right-4 z-50">
-          <div className={`alert ${notification.type === 'success' ? 'alert-success' : 'alert-error'} shadow-xl rounded-xl max-w-md`}>
-            <div className="flex items-center gap-2">
-              {notification.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-              <span className="font-medium">{notification.message}</span>
+    <div className="w-full min-h-screen bg-base-200/40 pb-24">
+      {/* EN-TÊTE */}
+      <div className="w-full sticky top-0 z-20 bg-base-100 border-b border-base-300 shadow-sm">
+        <div className="flex items-center gap-4 px-6 py-3">
+          <button
+            onClick={() => navigate('/stocks')}
+            className="btn btn-ghost btn-sm btn-circle"
+            type="button"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs text-base-content/50 uppercase mb-0.5">
+              Stocks / Ajout manuel / <span className="text-primary">Création</span>
             </div>
-            <button className="btn btn-ghost btn-xs btn-circle" onClick={() => setNotification(null)}>
-              <X className="w-3 h-3" />
-            </button>
+            <h1 className="text-xl font-bold flex items-center gap-2 truncate">
+              <PackagePlus className="w-5 h-5 text-primary" />
+              Ajout manuel de stock
+            </h1>
           </div>
+          <div className="badge badge-primary hidden sm:flex">Ajout direct</div>
+        </div>
+      </div>
+
+      {succes && (
+        <div className="w-full alert alert-success rounded-none py-2">
+          <CheckCircle className="w-5 h-5" />
+          <span>Stock ajouté avec succès !</span>
+        </div>
+      )}
+      {erreur && (
+        <div className="w-full alert alert-error rounded-none py-2">
+          <AlertCircle className="w-5 h-5" />
+          <span>{erreur}</span>
+          <button
+            className="btn btn-ghost btn-xs btn-circle ml-auto"
+            onClick={() => setErreur(null)}
+          >
+            <X className="w-3 h-3" />
+          </button>
         </div>
       )}
 
-      {/* Header */}
-      <div className="w-full bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b border-primary/20 py-4 px-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/stocks')}
-              className="btn btn-ghost btn-sm gap-2 hover:bg-primary/10"
-            >
-              <ArrowLeft className="w-4 h-4" /> Retour
-            </button>
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-primary/15 rounded-xl">
-                <PackagePlus className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-800">Ajout manuel de stock</h1>
-                <p className="text-sm text-gray-500">Ajouter du stock sans commande fournisseur</p>
+      <form onSubmit={handleSubmit}>
+        <div className="w-full grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
+          {/* COLONNE PRINCIPALE (2/3) */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* SECTION 1 : Produit & Entrepôt */}
+            <div className="card bg-base-100 shadow-sm border border-base-300">
+              <div className="card-body p-0">
+                <div className="px-5 py-3 border-b bg-base-200/30 flex items-center gap-2">
+                  <Package className="w-4 h-4 text-primary" />
+                  <h2 className="font-semibold text-sm">Produit & Entrepôt</h2>
+                </div>
+                <div className="p-5 space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="form-control w-full">
+                      <label className="label py-0 pb-1.5">
+                        <span className="label-text text-sm font-medium">
+                          <Package className="w-3 h-3 mr-1 inline" /> Produit{' '}
+                          <span className="text-error">*</span>
+                        </span>
+                      </label>
+                      <select
+                        name="product_id"
+                        className={`select select-bordered w-full ${errors.product_id ? 'select-error' : ''}`}
+                        value={formData.product_id}
+                        onChange={handleChange}
+                        required
+                      >
+                        <option value="">
+                          — Sélectionner ({products.length} produits) —
+                        </option>
+                        {products.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.code} - {p.name}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.product_id && (
+                        <span className="text-error text-xs mt-1">{errors.product_id}</span>
+                      )}
+                    </div>
+
+                    <div className="form-control w-full">
+                      <label className="label py-0 pb-1.5">
+                        <span className="label-text text-sm font-medium">
+                          <Building2 className="w-3 h-3 mr-1 inline" /> Entrepôt{' '}
+                          <span className="text-error">*</span>
+                        </span>
+                      </label>
+                      <select
+                        name="warehouse_id"
+                        className={`select select-bordered w-full ${errors.warehouse_id ? 'select-error' : ''}`}
+                        value={formData.warehouse_id}
+                        onChange={handleChange}
+                        required
+                      >
+                        <option value="">
+                          — Sélectionner ({warehouses.length} entrepôts) —
+                        </option>
+                        {warehouses.map((wh) => (
+                          <option key={wh.id} value={wh.id}>
+                            {wh.name} ({wh.code})
+                          </option>
+                        ))}
+                      </select>
+                      {errors.warehouse_id && (
+                        <span className="text-error text-xs mt-1">{errors.warehouse_id}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Info produit sélectionné */}
+                  {selectedProduct && (
+                    <div className="alert alert-info py-2">
+                      <Info className="w-4 h-4" />
+                      <div className="text-xs flex-1">
+                        <div className="flex flex-wrap gap-x-4 gap-y-1">
+                          <span>
+                            <strong>Code :</strong> {selectedProduct.code}
+                          </span>
+                          <span>
+                            <strong>Expiration :</strong>{' '}
+                            {selectedProduct.has_expiry ? 'Oui' : 'Non'}
+                          </span>
+                          <span>
+                            <strong>Prix achat :</strong>{' '}
+                            {formaterMontant(selectedProduct.purchase_price)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="badge badge-primary badge-lg gap-2 px-4 py-2.5">
-              <PlusCircle className="w-4 h-4" /> Ajout direct
-            </span>
-          </div>
-        </div>
-      </div>
 
-      {/* Formulaire */}
-      <div className="w-full h-[calc(100%-80px)] overflow-hidden">
-        <form onSubmit={handleSubmit} className="h-full w-full flex flex-col">
+            {/* SECTION 2 : Quantité & Lot */}
+            <div className="card bg-base-100 shadow-sm border border-base-300">
+              <div className="card-body p-0">
+                <div className="px-5 py-3 border-b bg-base-200/30 flex items-center gap-2">
+                  <Hash className="w-4 h-4 text-primary" />
+                  <h2 className="font-semibold text-sm">Quantité & Lot</h2>
+                </div>
+                <div className="p-5 space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="form-control w-full">
+                      <label className="label py-0 pb-1.5">
+                        <span className="label-text text-sm font-medium">
+                          <Box className="w-3 h-3 mr-1 inline" /> Quantité{' '}
+                          <span className="text-error">*</span>
+                        </span>
+                      </label>
+                      <input
+                        type="number"
+                        name="quantity"
+                        className={`input input-bordered w-full font-mono ${errors.quantity ? 'input-error' : ''}`}
+                        value={formData.quantity}
+                        onChange={handleChange}
+                        min="1"
+                        placeholder="0"
+                        required
+                      />
+                      {errors.quantity ? (
+                        <span className="text-error text-xs mt-1">{errors.quantity}</span>
+                      ) : selectedProduct ? (
+                        <span className="text-xs text-base-content/40 mt-1">
+                          Stock actuel : {selectedProduct.current_stock || 0} unités
+                        </span>
+                      ) : null}
+                    </div>
 
-          {/* Contenu du formulaire */}
-          <div className="flex-1 w-full overflow-hidden p-6">
-            <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 h-full">
-
-              {/* Colonne 1: Produit & Entrepot */}
-              <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden flex flex-col">
-                <div className="bg-primary/5 px-5 py-3 border-b border-primary/10">
-                  <h3 className="font-semibold flex items-center gap-2 text-base">
-                    <Package className="w-5 h-5 text-primary" /> Produit & Entrepot
-                  </h3>
-                </div>
-                <div className="flex-1 p-5 space-y-4 overflow-y-auto">
-                  <div>
-                    <label className="label text-sm font-medium text-gray-700">
-                      Produit <span className="text-error">*</span>
-                    </label>
-                    <select
-                      name="product_id"
-                      value={formData.product_id}
-                      onChange={handleChange}
-                      className={`select select-bordered w-full text-base h-12 ${errors.product_id ? 'select-error' : ''}`}
-                    >
-                      <option value="">Selectionner un produit ({products.length} disponibles)</option>
-                      {products.map(product => (
-                        <option key={product.id} value={product.id}>
-                          {product.code} - {product.name} (Stock: {product.current_stock || 0})
-                        </option>
-                      ))}
-                    </select>
-                    {errors.product_id && <p className="text-error text-sm mt-1">{errors.product_id}</p>}
-                    {products.length === 0 && (
-                      <p className="text-warning text-sm mt-2">
-                        Aucun produit actif disponible
-                      </p>
-                    )}
-                    {selectedProduct && (
-                      <div className="mt-3 p-3 bg-primary/5 rounded-xl space-y-1.5">
-                        <p className="text-sm text-gray-600 flex items-center gap-2">
-                          <Tag className="w-4 h-4 text-primary" /> Code: <span className="font-medium">{selectedProduct.code}</span>
-                        </p>
-                        <p className="text-sm text-gray-600 flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-primary" /> Expiration: <span className="font-medium">{selectedProduct.has_expiry ? 'Oui' : 'Non'}</span>
-                        </p>
-                        <p className="text-sm text-gray-600 flex items-center gap-2">
-                          <BadgeDollarSign className="w-4 h-4 text-primary" /> Prix achat: <span className="font-medium">{(parseFloat(selectedProduct.purchase_price) || 0).toLocaleString('fr-FR')} FCFA</span>
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <label className="label text-sm font-medium text-gray-700">
-                      Entrepot <span className="text-error">*</span>
-                    </label>
-                    <select
-                      name="warehouse_id"
-                      value={formData.warehouse_id}
-                      onChange={handleChange}
-                      className={`select select-bordered w-full text-base h-12 ${errors.warehouse_id ? 'select-error' : ''}`}
-                    >
-                      <option value="">Selectionner un entrepot ({warehouses.length} disponibles)</option>
-                      {warehouses.map(warehouse => (
-                        <option key={warehouse.id} value={warehouse.id}>
-                          {warehouse.name} ({warehouse.code})
-                        </option>
-                      ))}
-                    </select>
-                    {errors.warehouse_id && <p className="text-error text-sm mt-1">{errors.warehouse_id}</p>}
-                    {warehouses.length === 0 && (
-                      <p className="text-warning text-sm mt-2">
-                        Aucun entrepot actif disponible
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Colonne 2: Quantite & Lot */}
-              <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden flex flex-col">
-                <div className="bg-primary/5 px-5 py-3 border-b border-primary/10">
-                  <h3 className="font-semibold flex items-center gap-2 text-base">
-                    <Hash className="w-5 h-5 text-primary" /> Quantite & Lot
-                  </h3>
-                </div>
-                <div className="flex-1 p-5 space-y-4 overflow-y-auto">
-                  <div>
-                    <label className="label text-sm font-medium text-gray-700">
-                      Quantite <span className="text-error">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      name="quantity"
-                      value={formData.quantity}
-                      onChange={handleChange}
-                      className={`input input-bordered w-full text-base h-12 ${errors.quantity ? 'input-error' : ''}`}
-                      placeholder="100"
-                      min="1"
-                    />
-                    {errors.quantity && <p className="text-error text-sm mt-1">{errors.quantity}</p>}
-                    {selectedProduct && (
-                      <p className="text-sm text-gray-400 mt-1.5 flex items-center gap-2">
-                        <Box className="w-4 h-4" /> Stock actuel: <span className="font-medium">{selectedProduct.current_stock || 0}</span> unites
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="label text-sm font-medium text-gray-700">
-                      Numero de lot
-                    </label>
-                    <input
-                      type="text"
-                      name="lot_number"
-                      value={formData.lot_number}
-                      onChange={handleChange}
-                      className="input input-bordered w-full text-base h-12"
-                      placeholder="Auto-genere si vide"
-                    />
-                    <p className="text-sm text-gray-400 mt-1.5 flex items-center gap-2">
-                      <Info className="w-4 h-4" /> Laissez vide pour generation automatique
-                    </p>
-                  </div>
-                  <div>
-                    <label className="label text-sm font-medium text-gray-700">
-                      Numero de batch
-                    </label>
-                    <input
-                      type="text"
-                      name="batch_number"
-                      value={formData.batch_number}
-                      onChange={handleChange}
-                      className="input input-bordered w-full text-base h-12"
-                      placeholder="BATCH-001"
-                    />
-                  </div>
-                  <div>
-                    <label className="label text-sm font-medium text-gray-700">
-                      Date d'expiration {selectedProduct?.has_expiry && <span className="text-error">*</span>}
-                    </label>
-                    <input
-                      type="date"
-                      name="expiry_date"
-                      value={formData.expiry_date}
-                      onChange={handleChange}
-                      className={`input input-bordered w-full text-base h-12 ${errors.expiry_date ? 'input-error' : ''}`}
-                    />
-                    {errors.expiry_date && <p className="text-error text-sm mt-1">{errors.expiry_date}</p>}
-                  </div>
-                </div>
-              </div>
-
-              {/* Colonne 3: Prix */}
-              <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden flex flex-col">
-                <div className="bg-primary/5 px-5 py-3 border-b border-primary/10">
-                  <h3 className="font-semibold flex items-center gap-2 text-base">
-                    <DollarSign className="w-5 h-5 text-primary" /> Prix
-                  </h3>
-                </div>
-                <div className="flex-1 p-5 space-y-4 overflow-y-auto">
-                  <div>
-                    <label className="label text-sm font-medium text-gray-700">
-                      Prix d'achat (FCFA)
-                    </label>
-                    <input
-                      type="number"
-                      name="purchase_price"
-                      value={formData.purchase_price}
-                      onChange={handleChange}
-                      className="input input-bordered w-full text-base h-12"
-                      placeholder="0"
-                      step="0.01"
-                    />
-                    <p className="text-sm text-gray-400 mt-1.5 flex items-center gap-2">
-                      <Info className="w-4 h-4" /> Laissez vide pour utiliser le prix du produit
-                    </p>
-                  </div>
-                  <div>
-                    <label className="label text-sm font-medium text-gray-700">
-                      Prix de vente (FCFA)
-                    </label>
-                    <input
-                      type="number"
-                      name="selling_price"
-                      value={formData.selling_price}
-                      onChange={handleChange}
-                      className="input input-bordered w-full text-base h-12"
-                      placeholder="0"
-                      step="0.01"
-                    />
-                    <p className="text-sm text-gray-400 mt-1.5 flex items-center gap-2">
-                      <Info className="w-4 h-4" /> Laissez vide pour utiliser le prix du produit
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Colonne 4: Notes & Resume */}
-              <div className="flex flex-col gap-4 h-full">
-                <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden flex-1">
-                  <div className="bg-primary/5 px-5 py-3 border-b border-primary/10">
-                    <h3 className="font-semibold flex items-center gap-2 text-base">
-                      <PenLine className="w-5 h-5 text-primary" /> Notes
-                    </h3>
-                  </div>
-                  <div className="p-5 space-y-4 h-[calc(100%-52px)]">
-                    <div>
-                      <label className="label text-sm font-medium text-gray-700">
-                        Raison de l'ajout
+                    <div className="form-control w-full">
+                      <label className="label py-0 pb-1.5">
+                        <span className="label-text text-sm font-medium">
+                          <Hash className="w-3 h-3 mr-1 inline" /> N° de lot
+                        </span>
                       </label>
                       <input
                         type="text"
-                        name="reason"
-                        value={formData.reason}
+                        name="lot_number"
+                        className="input input-bordered w-full font-mono"
+                        value={formData.lot_number}
                         onChange={handleChange}
-                        className="input input-bordered w-full text-base h-12"
-                        placeholder="Ajout manuel, retour, ajustement..."
+                        maxLength="100"
+                        placeholder="Auto-généré si vide"
                       />
                     </div>
-                    <div className="flex-1">
-                      <label className="label text-sm font-medium text-gray-700">
-                        Notes <span className="text-gray-400 text-xs">(observations)</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="form-control w-full">
+                      <label className="label py-0 pb-1.5">
+                        <span className="label-text text-sm font-medium">
+                          <Layers className="w-3 h-3 mr-1 inline" /> N° de batch
+                        </span>
                       </label>
-                      <textarea
-                        name="notes"
-                        value={formData.notes}
+                      <input
+                        type="text"
+                        name="batch_number"
+                        className="input input-bordered w-full font-mono"
+                        value={formData.batch_number}
                         onChange={handleChange}
-                        className="textarea textarea-bordered w-full h-[calc(100%-60px)] min-h-[80px] text-base resize-none"
-                        placeholder="Informations sur le lot, qualite, fournisseur..."
+                        maxLength="100"
+                        placeholder="BATCH-001"
                       />
+                    </div>
+
+                    <div className="form-control w-full">
+                      <label className="label py-0 pb-1.5">
+                        <span className="label-text text-sm font-medium">
+                          <Calendar className="w-3 h-3 mr-1 inline" /> Date
+                          d'expiration
+                          {selectedProduct?.has_expiry && (
+                            <span className="text-error ml-1">*</span>
+                          )}
+                        </span>
+                      </label>
+                      <input
+                        type="date"
+                        name="expiry_date"
+                        className={`input input-bordered w-full ${errors.expiry_date ? 'input-error' : ''}`}
+                        value={formData.expiry_date}
+                        onChange={handleChange}
+                      />
+                      {errors.expiry_date && (
+                        <span className="text-error text-xs mt-1">{errors.expiry_date}</span>
+                      )}
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
 
-                {/* Resume */}
-                <div className="bg-gradient-to-r from-primary/5 to-primary/10 rounded-2xl border border-primary/20 overflow-hidden">
-                  <div className="bg-primary/10 px-5 py-2.5 border-b border-primary/10">
-                    <h3 className="font-semibold flex items-center gap-2 text-sm">
-                      <CheckCircle className="w-4 h-4 text-primary" /> Resume de l'operation
-                    </h3>
-                  </div>
-                  <div className="p-4">
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div className="bg-white/50 rounded-lg p-3">
-                        <p className="text-gray-500 text-xs">Produit</p>
-                        <p className="font-medium truncate text-primary">
-                          {selectedProduct?.name || 'Non selectionne'}
-                        </p>
+            {/* SECTION 3 : Prix */}
+            <div className="card bg-base-100 shadow-sm border border-base-300">
+              <div className="card-body p-0">
+                <div className="px-5 py-3 border-b bg-base-200/30 flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-primary" />
+                  <h2 className="font-semibold text-sm">Prix</h2>
+                </div>
+                <div className="p-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="form-control w-full">
+                      <label className="label py-0 pb-1.5">
+                        <span className="label-text text-sm font-medium">
+                          <BadgeDollarSign className="w-3 h-3 mr-1 inline text-error" />{' '}
+                          Prix d'achat (CFA)
+                        </span>
+                      </label>
+                      <div className="relative">
+                        <DollarSign className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40" />
+                        <input
+                          type="number"
+                          name="purchase_price"
+                          className="input input-bordered w-full pl-10 font-mono"
+                          value={formData.purchase_price}
+                          onChange={handleChange}
+                          min="0"
+                          step="0.01"
+                          placeholder="0"
+                        />
                       </div>
-                      <div className="bg-white/50 rounded-lg p-3">
-                        <p className="text-gray-500 text-xs">Entrepot</p>
-                        <p className="font-medium truncate">
-                          {warehouses.find(w => w.id === parseInt(formData.warehouse_id))?.name || 'Non selectionne'}
-                        </p>
-                      </div>
-                      <div className="bg-white/50 rounded-lg p-3">
-                        <p className="text-gray-500 text-xs">Quantite</p>
-                        <p className="font-medium text-success text-lg">
-                          {formData.quantity || '0'} <span className="text-xs text-gray-400">unites</span>
-                        </p>
-                      </div>
-                      <div className="bg-white/50 rounded-lg p-3">
-                        <p className="text-gray-500 text-xs">Lot</p>
-                        <p className="font-medium truncate">{formData.lot_number || 'Auto-genere'}</p>
-                      </div>
+                      <span className="text-xs text-base-content/40 mt-1">
+                        Vide = prix du produit
+                      </span>
                     </div>
+
+                    <div className="form-control w-full">
+                      <label className="label py-0 pb-1.5">
+                        <span className="label-text text-sm font-medium">
+                          <DollarSign className="w-3 h-3 mr-1 inline text-success" />{' '}
+                          Prix de vente (CFA)
+                        </span>
+                      </label>
+                      <div className="relative">
+                        <DollarSign className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40" />
+                        <input
+                          type="number"
+                          name="selling_price"
+                          className="input input-bordered w-full pl-10 font-mono"
+                          value={formData.selling_price}
+                          onChange={handleChange}
+                          min="0"
+                          step="0.01"
+                          placeholder="0"
+                        />
+                      </div>
+                      <span className="text-xs text-base-content/40 mt-1">
+                        Vide = prix du produit
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 4 : Motif & Notes */}
+            <div className="card bg-base-100 shadow-sm border border-base-300">
+              <div className="card-body p-0">
+                <div className="px-5 py-3 border-b bg-base-200/30 flex items-center gap-2">
+                  <PenLine className="w-4 h-4 text-primary" />
+                  <h2 className="font-semibold text-sm">Motif & Notes</h2>
+                </div>
+                <div className="p-5 space-y-4">
+                  <div className="form-control w-full">
+                    <label className="label py-0 pb-1.5">
+                      <span className="label-text text-sm font-medium">
+                        <FileText className="w-3 h-3 mr-1 inline" /> Raison de
+                        l'ajout
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      name="reason"
+                      className="input input-bordered w-full"
+                      value={formData.reason}
+                      onChange={handleChange}
+                      maxLength="200"
+                      placeholder="Ajout manuel, retour, ajustement..."
+                    />
+                  </div>
+
+                  <div className="form-control w-full">
+                    <label className="label py-0 pb-1.5">
+                      <span className="label-text text-sm font-medium">
+                        <PenLine className="w-3 h-3 mr-1 inline" /> Notes
+                        <span className="text-xs text-base-content/40 ml-1">
+                          (observations)
+                        </span>
+                      </span>
+                    </label>
+                    <textarea
+                      name="notes"
+                      className="textarea textarea-bordered w-full"
+                      value={formData.notes}
+                      onChange={handleChange}
+                      rows="3"
+                      placeholder="Informations sur le lot, qualité, fournisseur..."
+                    ></textarea>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Boutons */}
-          <div className="w-full px-6 py-4 bg-white border-t border-gray-200 flex flex-col sm:flex-row gap-4 justify-end">
+          {/* COLONNE APERÇU (1/3) */}
+          <div className="lg:col-span-1 space-y-6">
+            <div className="card bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 shadow-sm">
+              <div className="card-body">
+                <div className="flex items-center gap-2 mb-3">
+                  <Eye className="w-4 h-4 text-primary" />
+                  <h3 className="font-semibold text-sm">Aperçu de l'opération</h3>
+                </div>
+                <div className="bg-base-100 rounded-xl p-4 border border-base-300">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center flex-shrink-0">
+                      <PackagePlus className="w-6 h-6 text-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-mono text-xs text-base-content/50 truncate">
+                        {selectedProduct?.code || 'CODE'}
+                      </p>
+                      <p className="font-bold text-sm mt-0.5 truncate">
+                        {selectedProduct?.name || 'Nom du produit'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="divider my-3"></div>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-base-content/60">Entrepôt :</span>
+                      <span className="font-medium truncate ml-2 max-w-[140px]">
+                        {formData.warehouse_id
+                          ? getWarehouseName(formData.warehouse_id)
+                          : '—'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-base-content/60">Quantité :</span>
+                      <span className="font-mono font-bold text-success">
+                        +{quantite}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-base-content/60">Lot :</span>
+                      <span className="font-mono text-[10px] truncate ml-2 max-w-[120px]">
+                        {formData.lot_number || 'Auto-généré'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {(prixAchat > 0 || quantite > 0) && (
+                    <>
+                      <div className="divider my-3"></div>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-base-content/60">Prix achat :</span>
+                          <span className="font-mono">
+                            {formaterMontant(prixAchat)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-base-content/60">Valeur totale :</span>
+                          <span className="font-mono font-bold text-primary">
+                            {formaterMontant(valeurTotale)}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {formData.expiry_date && (
+                    <>
+                      <div className="divider my-3"></div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-base-content/60 flex items-center gap-1">
+                          <Clock className="w-3 h-3" /> Expire le :
+                        </span>
+                        <span className="font-mono font-bold">
+                          {new Date(formData.expiry_date).toLocaleDateString('fr-FR')}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Info box */}
+            <div className="card bg-info/5 border border-info/20">
+              <div className="card-body p-4">
+                <div className="flex items-start gap-2">
+                  <Info className="w-4 h-4 text-info flex-shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-medium text-info mb-1">À savoir</p>
+                    <p className="text-base-content/70">
+                      L'ajout manuel crée un <strong>nouveau lot</strong> dans
+                      l'entrepôt. Un <strong>mouvement</strong> de type
+                      "Entrée par achat" est automatiquement enregistré.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Alerte expiration */}
+            {selectedProduct?.has_expiry && !formData.expiry_date && (
+              <div className="card bg-warning/5 border border-warning/20">
+                <div className="card-body p-4">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                    <div className="text-xs">
+                      <p className="font-medium text-warning mb-1">
+                        Date d'expiration requise
+                      </p>
+                      <p className="text-base-content/70">
+                        Ce produit a une date d'expiration obligatoire.
+                        Remplissez le champ correspondant.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Conseil */}
+            <div className="card bg-success/5 border border-success/20">
+              <div className="card-body p-4">
+                <div className="flex items-start gap-2">
+                  <Shield className="w-4 h-4 text-success flex-shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-medium text-success mb-1">Traçabilité</p>
+                    <p className="text-base-content/70">
+                      Utilisez un <strong>numéro de lot unique</strong> pour
+                      faciliter le suivi et les retours.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* BARRE STICKY */}
+        <div className="fixed bottom-0 left-0 right-0 z-30 bg-base-100 border-t border-base-300 shadow-lg lg:pl-72">
+          <div className="flex items-center justify-end gap-3 px-6 py-3">
             <button
               type="button"
               onClick={() => navigate('/stocks')}
-              className="btn btn-ghost gap-2 text-base px-6 h-12 hover:bg-gray-100"
-              disabled={submitting}
+              className="btn btn-ghost"
+              disabled={chargement}
             >
-              <X className="w-5 h-5" /> Annuler
+              Annuler
             </button>
             <button
               type="submit"
-              className="btn btn-primary gap-2 min-w-[180px] text-base px-8 h-12 shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all"
-              disabled={submitting || products.length === 0 || warehouses.length === 0}
+              className="btn btn-primary gap-2 min-w-[180px]"
+              disabled={
+                chargement ||
+                products.length === 0 ||
+                warehouses.length === 0
+              }
             >
-              {submitting ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+              {chargement ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Enregistrement...
+                </>
               ) : (
-                <Save className="w-5 h-5" />
+                <>
+                  <Save className="w-4 h-4" /> Ajouter au stock
+                </>
               )}
-              {submitting ? 'Ajout en cours...' : 'Ajouter au stock'}
             </button>
           </div>
-
-        </form>
-      </div>
+        </div>
+      </form>
     </div>
   );
 };
 
 // ============================================================
-// WRAPPER avec ErrorBoundary
+// WRAPPER AVEC ERROR BOUNDARY
 // ============================================================
 const AddStockManual = () => (
   <ErrorBoundary>
